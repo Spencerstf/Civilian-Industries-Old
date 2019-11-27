@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root>
-    <!--    
+    <!--
             File contains stations and ships for the PlayerTrains faction.
      -->
      <!--   The main station of our faction.
@@ -76,7 +76,7 @@
     -->
     <entity name="CargoShip" display_name="Cargo Ship" cannot_be_stacked="true"
             description="A civilian trade ship. It is tasked with moving resources throughout your planets."
-            tags="CivilianIndustryEntity,CargoShip,ShowsOnNormalDisplayMode"		
+            tags="CivilianIndustryEntity,CargoShip,ShowsOnNormalDisplayMode"
 			visuals="assets/_finalgamemeshes/starships/prototypeflagship/prototypeflagship.prefab"
 			icon_name="Official/Starship" icon_overlay="Official/Starship_Assault"
             gimbal_icon_size_multiplier="1.25"
@@ -108,8 +108,8 @@
             Can deploy into a Militia Outpost.
     -->
     <entity name="MilitiaCapitalShip" display_name="Militia Capital Ship" skip_export="true" copy_from="AssaultFrigate" tags="MilitiaShip,MilitiaCapitalShip,CivilianIndustryEntity"
-            hull_points="500000" shield_points="100000" speed="AboveAverage3"
-            description="The centerpiece of a Miltia Fleet. It will respond to requests for protection from allied planets."
+            hull_points="500000" shield_points="100000" speed="BelowAverage1"
+            description="The centerpiece of a Miltia Fleet, it is carrying materials required to construct a defensive building."
             description_appender_dll="SKCivilianIndustry"
             description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender"
             >
@@ -119,14 +119,50 @@
     -->
     <entity name="MilitiaOutpost" display_name="Militia Outpost" skip_export="true" copy_from="AIFortress" tags="MilitiaShip,MilitiaOutpost,CivilianIndustryEntity"
             hull_points="100000" shield_points="500000"
-            damage_multiplier_to_all_weapons="0.1"
-            description="The centerpiece of a Militia Fleet. This has been built in response to ai threat on adjacent planets."
+            damage_multiplier_to_all_weapons="0.2"
+            description="The centerpiece of a Militia Fleet. This has been built in response to ai threat on adjacent planets. Requests resources to build stationary defenses."
+            assist_range="InsanelyHigh"
             description_appender_dll="SKCivilianIndustry"
             description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender">
+            <metal_flow purpose="RepairingHullsOfFriendlies" throughput="150" />
+            <metal_flow purpose="RepairingShieldsOfFriendlies" throughput="150" />
+            <metal_flow purpose="RepairingEnginesOfFriendlies" throughput="150" />
     </entity>
     <!--    Militia Turrets.
             Built next to outposts, copy of Pike.
     -->
     <entity name="MilitiaPikeTurret" display_name="Militia Pike Turret" skip_export="true" copy_from="PikeTurret" tags="MilitiaShip,MilitiaTurret,MilitiaPike,CivilianIndustryEntity">
+    </entity>
+    <!--    Militia Barracks.
+            Built on planets that are fully covered by Militia Outposts already, but still feel threatened. Creates mobile forces to both defend and attack.
+    -->
+    <entity name="MilitiaBarracks"
+  			tags="MilitiaShip,MilitiaBarracks,CivilianIndustryEntity"
+  			visuals="assets/_finalgamemeshes/humanbuildings/spacedock/spacedock.prefab"
+  			icon_name="Official/SpaceDock" gimbal_icon_size_multiplier="1.5"
+  			category="Ship" is_critical_infrastructure="true"
+  			visuals_scale_multiplier="4.8" size_scale="3.9"
+  			y_offset_of_icon="20"
+  			collision_priority="1000"
+  			display_name="Militia Barracks"
+  			description="The centerpiece of a Militia Fleet. This has been built in response to ai threat on adjacent planets. Requests resources to build mobile forces."
+  			behavior="Stationary"
+  			starting_mark_level="Markless"
+  			cost_for_ai_to_purchase="90000"
+  			hull_points="50000" shield_points="75000" speed="Immobile"
+  			metal_cost="25000" energy_consumption="500"
+  			armor_mm="90" albedo="0.2" mass_tx="3"
+  			ship_or_structure_explosion_sfx="StructureLarge_Explosion"
+  			ship_or_structure_explosion_if_on_other_planet_sfx="StructureLostOnOtherPlanet_Explosion"
+  			voice_group="Civilian"
+        exp_to_grant_on_death="-1"
+        priority_as_ai_target="MidNasty" priority_as_frd_target="NotDangerous" priority_to_protect="MidFavoriteToy"
+        assist_range="InsanelyHigh"
+        description_appender_dll="SKCivilianIndustry"
+        description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender"
+  			>
+        <metal_flow purpose="RepairingHullsOfFriendlies" throughput="150" />
+        <metal_flow purpose="RepairingShieldsOfFriendlies" throughput="150" />
+        <metal_flow purpose="RepairingEnginesOfFriendlies" throughput="150" />
     </entity>
 </root>
