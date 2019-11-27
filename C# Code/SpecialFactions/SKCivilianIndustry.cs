@@ -911,6 +911,13 @@ namespace Arcen.AIW2.SK
                 // Spawn in the ship.
                 GameEntity_Squad entity = GameEntity_Squad.CreateNew( pFaction, entityData, entityData.MarkFor( pFaction ), pFaction.FleetUsedAtPlanet, 0, spawnPoint, Context );
 
+                // Initialize cargo.
+                CivilianCargo tradeCargo = entity.GetCivilianCargoExt();
+                // Large capacity of metal, no goods.
+                tradeCargo.Capacity[(int)CivilianResource.Goods] = 0;
+                tradeCargo.Capacity[(int)CivilianResource.Metal] *= 15;
+                entity.SetCivilianCargoExt( tradeCargo );
+
                 // Add the militia ship to our faction data.
                 factionData.MilitiaLeaders.Add( entity.PrimaryKeyID );
 
