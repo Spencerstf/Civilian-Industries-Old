@@ -61,7 +61,7 @@ namespace Arcen.AIW2.SK
         // Faction indexes with an active civilian industry.
         public List<int> Factions;
 
-        // Helper function.
+        // Helper function(s).
         // Get the faction that the sent index is for.
         public (bool valid, Faction faction, CivilianFaction factionData) getFactionInfo( int index )
         {
@@ -166,6 +166,18 @@ namespace Arcen.AIW2.SK
                 index = PlanetThreatIndex.Count - 1;
             }
             return index;
+        }
+
+        // Returns the request points per ship.
+        public int getRequestPoints()
+        {
+            return (11 - World_AIW2.Instance.GetEntityByID_Squad( GrandStation ).PlanetFaction.Faction.Ex_MinorFactionCommon_GetPrimitives().Intensity) * 10;
+        }
+
+        // Returns the resource cost per ship/turret.
+        public int getResourceCost()
+        {
+            return 21 - (int)Math.Pow(World_AIW2.Instance.GetEntityByID_Squad( GrandStation ).PlanetFaction.Faction.Ex_MinorFactionCommon_GetPrimitives().Intensity, 1.2);
         }
 
         // Following three functions are used for initializing, saving, and loading data.
@@ -449,8 +461,8 @@ namespace Arcen.AIW2.SK
             // If we found our faction data, inform them about build requests in the faction.
             if ( factionData != null )
             {
-                Buffer.Add( "\n" + factionData.BuildCounter + "/" + factionData.CargoShips.Count * 50 + " Request points until next Cargo Ship built." );
-                Buffer.Add( "\n" + factionData.MilitiaCounter + "/" + factionData.MilitiaLeaders.Count * 100 + " Request points until next Miltia ship built." );
+                Buffer.Add( "\n" + factionData.BuildCounter + "/" + factionData.CargoShips.Count * factionData.getRequestPoints() + " Request points until next Cargo Ship built." );
+                Buffer.Add( "\n" + factionData.MilitiaCounter + "/" + factionData.MilitiaLeaders.Count * factionData.getRequestPoints() + " Request points until next Miltia ship built." );
             }
 
             // If applicable, inform them about any resources they have over capacity, and how much metal they're gaining per second from the drain.
@@ -574,13 +586,20 @@ namespace Arcen.AIW2.SK
             // We'll have to load our world data.
             CivilianWorld worldData = World.Instance.GetCivilianWorldExt();
             Faction playerFaction;
+            CivilianFaction factionData = null;
             // Look through our saved factions to find which one has our militia ship
             for ( int x = 0; x < worldData.Factions.Count; x++ )
             {
                 CivilianFaction tempData = worldData.getFactionInfo( x ).factionData;
                 if ( tempData.MilitiaLeaders.Contains( RelatedEntityOrNull.PrimaryKeyID ) )
+                {
                     playerFaction = worldData.getFactionInfo( x ).faction;
+                    factionData = playerFaction.GetCivilianFactionExt();
+                }
             }
+
+            if ( factionData == null )
+                return;
 
             // Get ship/turret cap based on AIP.
             int cap = 0;
@@ -600,7 +619,7 @@ namespace Arcen.AIW2.SK
                     if ( militiaData.Status == CivilianMilitiaStatus.Defending )
                         typeData = GameEntityTypeDataTable.Instance.GetRowByName( ((CivilianMilitiaTurretType)x).ToString(), false, null );
                     else if ( militiaData.Status == CivilianMilitiaStatus.Patrolling )
-                        GameEntityTypeDataTable.Instance.GetRowByName( ((CivilianMilitiaTurretType)x).ToString(), false, null );
+                        typeData = GameEntityTypeDataTable.Instance.GetRowByName( ((CivilianMilitiaShipType)x).ToString(), false, null );
                     int count;
                     try
                     {
@@ -614,7 +633,7 @@ namespace Arcen.AIW2.SK
                     // If one is built, or it has the resources to begin building one, display it.
                     if ( count > 0 || cargoData.Amount[x] > 0 )
                     {
-                        Buffer.Add( " " + count + "/" + cap + " " + typeData.DisplayName + ", next " + typeData.DisplayName + " costs " + (10 + count * 10) + " " + ((CivilianResource)x).ToString() + " to build." );
+                        Buffer.Add( " " + count + "/" + cap + " " + typeData.DisplayName + ", next " + typeData.DisplayName + " costs " + (count * factionData.getResourceCost()) + " " + ((CivilianResource)x).ToString() + " to build." );
                     }
                 }
             // Inform them about what the ship is doing.
@@ -890,7 +909,7 @@ namespace Arcen.AIW2.SK
             // Build a cargo ship if one of the following is true:
             // Less than 10 cargo ships.
             // More than 10 cargo ships, and build counter is > # of cargo ships * 100.
-            if ( factionData.CargoShips.Count < 10 || factionData.BuildCounter > factionData.CargoShips.Count * 50 )
+            if ( factionData.CargoShips.Count < 10 || factionData.BuildCounter > factionData.CargoShips.Count * factionData.getRequestPoints() )
             {
                 // Load our cargo ship's data.
                 GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "CargoShip" );
@@ -914,8 +933,8 @@ namespace Arcen.AIW2.SK
 
             // Build a militia ship if one of the following is true:
             // Less than 1 militia ships.
-            // More than 1 militia ship, and build counter is > # of cargo ships * 50.
-            if ( factionData.MilitiaLeaders.Count < 1 || factionData.MilitiaCounter > factionData.MilitiaLeaders.Count * 100 )
+            // More than 1 militia ship, and build counter is > # of militia ships * 50.
+            if ( factionData.MilitiaLeaders.Count < 1 || factionData.MilitiaCounter > factionData.MilitiaLeaders.Count * factionData.getRequestPoints() )
             {
                 // Load our militia ship's data.
                 GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "MilitiaCapitalShip" );
@@ -932,9 +951,12 @@ namespace Arcen.AIW2.SK
 
                 // Initialize cargo.
                 CivilianCargo tradeCargo = entity.GetCivilianCargoExt();
-                // Large capacity of metal, no goods.
-                tradeCargo.Capacity[(int)CivilianResource.Goods] = 0;
-                tradeCargo.Capacity[(int)CivilianResource.Metal] *= 15;
+                // Large capacity of everything but goods.
+                for ( int y = 0; y < tradeCargo.Capacity.Length; y++ )
+                    if ( ((CivilianResource)y) == CivilianResource.Goods )
+                        tradeCargo.Capacity[y] = 0;
+                    else
+                        tradeCargo.Capacity[y] *= 15;
                 entity.SetCivilianCargoExt( tradeCargo );
 
                 // Add the militia ship to our faction data.
@@ -1840,7 +1862,7 @@ namespace Arcen.AIW2.SK
                         // Get cargo and ship cost.
                         int i = (int)CivilianResource.Metal;
 
-                        int cost = 10 + count * 10;
+                        int cost = count * factionData.getResourceCost();
                         if ( militiaCargo.Amount[i] >= cost )
                         {
                             // Remove cost.
@@ -1889,7 +1911,7 @@ namespace Arcen.AIW2.SK
 
                         // Get cargo and ship cost.
                         int i = (int)CivilianResource.Metal;
-                        int cost = 10 + count * 10;
+                        int cost = count * factionData.getResourceCost();
                         if ( militiaCargo.Amount[i] >= cost )
                         {
                             // Remove cost.
@@ -1929,6 +1951,16 @@ namespace Arcen.AIW2.SK
         {
             // Update faction relations. Generally a good idea to have this in your DoPerSecondLogic function since other factions can also change their allegiances.
             allyThisFactionToHumans( faction );
+
+            // Update the mark level of all units.
+            double mark = 0;
+            for ( int x = 0; x < World_AIW2.Instance.AIFactions.Count; x++ )
+                mark += (double)World_AIW2.Instance.AIFactions[x].GetAICommonExternalData().AIProgress_Effective.ToInt() / 100;
+            faction.Entities.DoForEntities( delegate ( GameEntity_Squad squad )
+             {
+                 squad.SetCurrentMarkLevel( (int)Math.Floor(mark), Context );
+                 return DelReturn.Continue;
+             } );
 
             // Load our data.
             // Start with world.

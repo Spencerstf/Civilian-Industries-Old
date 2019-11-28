@@ -121,12 +121,8 @@
             hull_points="100000" shield_points="500000"
             damage_multiplier_to_all_weapons="0.2"
             description="The centerpiece of a Militia Fleet. This has been built in response to ai threat on adjacent planets. Requests resources to build stationary defenses."
-            assist_range="InsanelyHigh"
             description_appender_dll="SKCivilianIndustry"
             description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender">
-            <metal_flow purpose="RepairingHullsOfFriendlies" throughput="150" />
-            <metal_flow purpose="RepairingShieldsOfFriendlies" throughput="150" />
-            <metal_flow purpose="RepairingEnginesOfFriendlies" throughput="150" />
     </entity>
     <!--    Militia Turrets.
             Built next to outposts, copy of Pike.
@@ -157,12 +153,8 @@
   			voice_group="Civilian"
         exp_to_grant_on_death="-1"
         priority_as_ai_target="MidNasty" priority_as_frd_target="NotDangerous" priority_to_protect="MidFavoriteToy"
-        assist_range="InsanelyHigh"
         description_appender_dll="SKCivilianIndustry"
         description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender"
   			>
-        <metal_flow purpose="RepairingHullsOfFriendlies" throughput="150" />
-        <metal_flow purpose="RepairingShieldsOfFriendlies" throughput="150" />
-        <metal_flow purpose="RepairingEnginesOfFriendlies" throughput="150" />
     </entity>
 </root>
