@@ -278,6 +278,7 @@ namespace Arcen.AIW2.SK
         // Returns the resource cost per ship/turret.
         public int GetResourceCost( int count )
         {
+            // (50 - (Intensity ^ 1.5)) ^ (1 + #OfBuiltShips/100)
             return (int)Math.Pow( 50 - (int)Math.Pow( World_AIW2.Instance.GetEntityByID_Squad( GrandStation ).PlanetFaction.Faction.Ex_MinorFactionCommon_GetPrimitives().Intensity, 1.5 ),
                 1 + count / 100 );
         }
@@ -285,10 +286,7 @@ namespace Arcen.AIW2.SK
         // Returns the current capacity for turrets/ships.
         public int GetCap()
         {
-            // Explanation:
-            // Minimum 10.
-            // +1 for every aip earnt in total
-            // To the 1.0xth power, where X is equal to intensity. (To the 1.1th power at intensity 10.)
+            // 10 + (AIP / 5) ^ (1 + (Intensity/100) 
             int cap = 0;
             for ( int y = 0; y < World_AIW2.Instance.AIFactions.Count; y++ )
                 cap = (int)(Math.Ceiling( Math.Pow( Math.Max( cap, 10 + World_AIW2.Instance.AIFactions[y].GetAICommonExternalData().AIProgress_Total.ToInt() / 5 ),
@@ -802,10 +800,12 @@ namespace Arcen.AIW2.SK
                         {
                             Buffer.Add( " " + count + "/" + factionData.GetCap() + " " + typeData.DisplayName );
                             // If at least one metal, list time until next.
-                            if ( cargoData.Amount[x] > 0 )
+                            if ( count >= factionData.GetCap() )
+                                Buffer.Add( " (Building paused, max capacity.)" );
+                            else if ( cargoData.Amount[x] > 0 )
                                 Buffer.Add( " (Processing " + ((CivilianResource)x).ToString() + ", " + ((factionData.GetResourceCost( count )) - militiaData.ProcessedResources[x]) + " seconds left.)" );
                             else
-                                Buffer.Add( " (Building Paused, no " + ((CivilianResource)x).ToString() + ")" );
+                                Buffer.Add( " (Building paused, no " + ((CivilianResource)x).ToString() + ".)" );
                         }
                     }
                 }
@@ -1039,11 +1039,34 @@ namespace Arcen.AIW2.SK
                         {
                             // Building logic.
                             // Militia buildings.
-                            if ( entity.TypeData.GetHasTag( "MilitiaShip" ) )
+                            if ( entity.TypeData.GetHasTag( "MilitiaOutpost" ) )
                             {
                                 // If militia ship count is below cap, process the resource.
                                 // Get ship or turret type based on resource.
                                 GameEntityTypeData typeData = GameEntityTypeDataTable.Instance.GetRowByName( ((CivilianMilitiaTurretType)y).ToString(), false, null );
+                                int count;
+                                try
+                                {
+                                    count = entity.FleetMembership.Fleet.GetButDoNotAddMembershipGroupBasedOnSquadType_AssumeNoDuplicates( typeData ).Entities.Count;
+                                }
+                                catch ( Exception )
+                                {
+                                    count = 0;
+                                }
+                                // If count is below cap, proccess.
+                                if ( count < factionData.GetCap() )
+                                {
+                                    entityCargo.Amount[y] = Math.Min( entityCargo.Capacity[y], entityCargo.Amount[y] + entityCargo.PerSecond[y] );
+                                    CivilianMilitia militiaData = entity.GetCivilianMilitiaExt();
+                                    militiaData.ProcessedResources[y] -= entityCargo.PerSecond[y];
+                                    entity.SetCivilianMilitiaExt( militiaData );
+                                }
+                            }
+                            else if ( entity.TypeData.GetHasTag( "MilitiaBarracks" ) )
+                            {
+                                // If militia ship count is below cap, process the resource.
+                                // Get ship or turret type based on resource.
+                                GameEntityTypeData typeData = GameEntityTypeDataTable.Instance.GetRowByName( ((CivilianMilitiaShipType)y).ToString(), false, null );
                                 int count;
                                 try
                                 {

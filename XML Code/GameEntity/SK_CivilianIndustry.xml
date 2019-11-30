@@ -124,11 +124,6 @@
             description_appender_dll="SKCivilianIndustry"
             description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender">
     </entity>
-    <!--    Militia Turrets.
-            Built next to outposts, copy of Pike.
-    -->
-    <entity name="MilitiaPikeTurret" display_name="Militia Pike Turret" skip_export="true" copy_from="PikeTurret" tags="MilitiaShip,MilitiaTurret,MilitiaPike,CivilianIndustryEntity">
-    </entity>
     <!--    Militia Barracks.
             Built on planets that are fully covered by Militia Outposts already, but still feel threatened. Creates mobile forces to both defend and attack.
     -->
