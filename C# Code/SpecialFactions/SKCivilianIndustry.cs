@@ -26,7 +26,6 @@ namespace Arcen.AIW2.SK
         Pathing,    // Pathing towards a trade station.
         Enroute,    // Moving into position next to a wormhole to deploy.
         Defending,  // In station form, requesting resources and building static defenses.
-        Packing,    // Done with a Defending order, converting all static forces into militia ships. (TODO)
         Patrolling, // A more mobile form of Defense, requests resources to build mobile strike fleets.
         Assisting   // Attempting to attack a planet alongside the player.
     }
@@ -35,8 +34,11 @@ namespace Arcen.AIW2.SK
     // Only metal for now, but future-proofing for later expansion.
     public enum CivilianResource
     {
-        Goods,  // Requirement for trade stations to function.
-        Metal,  // Requirement for most stations to build things.
+        Goods,      // Requirement for trade stations to function.
+        Steel,
+        Crystal,
+        Aluminum,
+        Silicon,
         Length
     }
 
@@ -44,7 +46,10 @@ namespace Arcen.AIW2.SK
     public enum CivilianMilitiaShipType
     {
         None,   // Nothing is built by Goods.
-        VWing,
+        PikeCorvette,
+        Eyebot,
+        SentinelGunboat,
+        Zapper,
         Length
     }
 
@@ -52,7 +57,10 @@ namespace Arcen.AIW2.SK
     public enum CivilianMilitiaTurretType
     {
         None,   // Nothing is built by goods.
-        PikeTurret,
+        AIPikeTurret,
+        AINucleophilicTurret,
+        AITritiumSniperTurret,
+        AIFortifiedTeslaTurret,
         Length
     }
 
@@ -139,54 +147,152 @@ namespace Arcen.AIW2.SK
         public List<int> MilitiaLeaders;
 
         // Counter used to determine when another cargo ship should be built.
-        // Remains at 0 until 5 Cargo ships are built, than every station with a resource at full capacity increases this value by 1 every second.
-        // If the value becomes higher than Cargo Ship count * 5, a new one is spawnt, and this counter is reset.
         public int BuildCounter;
 
         // Counter used to determine when another militia ship should be built.
-        // The faction gets one for free, and whenever it detects a hostile force threatening enough without a miltiia ship already assigned, it attempts to find existing militia ships to assign to it.
-        // If it fails, it adds to this counter.
-        // If this counter gets above Militia Ship counter * 5, a new one is spawnt, and this counter is reset.
         public int MilitiaCounter;
 
-        // Following lists are used to keep track of the threat value on all planets this faction has influence on.
-        public List<int> PlanetThreatIndex; // Planet index
-        public List<int> PlanetThreat;      // How much threat
-        public List<bool> PlanetThreatDone; // Was it processed this turn? (used to avoid duplicate checks on overlapping areas of influence)
+        // Unlike every other value, the follow values are not stored and saved. They are simply regenerated whenever needed.
+        // Contains the calculated threat value on every planet.
+        // Calculated threat is all hostile strength - all friendly (excluding our own) strength.
+        public List<ThreatReport> ThreatReports;
 
-        // Returns the CivilianFaction index of a planet.
-        // If planet not found, creates new entries for them first.
-        public int getIndex( int planetIndex )
+        // Get the threat value for a planet.
+        public (int Militia, int Friendly, int Hostile, int Actual) GetThreat( Planet planet )
         {
-            int index = PlanetThreatIndex.IndexOf( planetIndex );
-            if ( index == -1 )
+            // If reports aren't generated, return 0.
+            if ( ThreatReports == null )
+                return (0, 0, 0, 0);
+            else
+                return (from o in ThreatReports where o.Planet == planet select o.GetThreat()).FirstOrDefault();
+        }
+        // Calculate threat values for all planets trade stations are either on or adjacent to.
+        public void CalculateThreat( Faction faction, Faction playerFaction )
+        {
+            // Empty our dictionary.
+            ThreatReports = new List<ThreatReport>();
+
+            // Get the grand station's planet, to easily figure out when we're processing the home planet.
+            GameEntity_Squad grandStation = World_AIW2.Instance.GetEntityByID_Squad( GrandStation );
+            if ( grandStation == null )
+                return;
+            Planet grandPlanet = grandStation.Planet;
+            if ( grandPlanet == null )
+                return;
+
+            // For every planet the player faction controls, process it and its neighbors.
+            playerFaction.DoForControlledPlanets( delegate ( Planet basePlanet )
             {
-                PlanetThreatIndex.Add( planetIndex );
-                PlanetThreat.Add( 0 );
-                PlanetThreatDone.Add( false );
-                index = PlanetThreatIndex.Count - 1;
-            }
-            return index;
+                basePlanet.DoForLinkedNeighborsAndSelf( delegate ( Planet planet )
+                {
+                    // Stop if its already processed.
+                    if ( (from o in ThreatReports select o.Planet).Contains( planet ) )
+                        return DelReturn.Continue;
+
+                    // Prepare variables to hold our soon to be detected threat values.
+                    int friendlyStrength = 0, hostileStrength = 0, militiaStrength = 0;
+                    // Wave detection.
+                    for ( int j = 0; j < World_AIW2.Instance.AIFactions.Count; j++ )
+                    {
+                        Faction aiFaction = World_AIW2.Instance.AIFactions[j];
+                        List<PlannedWave> QueuedWaves = aiFaction.GetWaveList();
+                        for ( int k = 0; k < QueuedWaves.Count; k++ )
+                        {
+                            PlannedWave wave = QueuedWaves[k];
+
+                            if ( wave.targetPlanetIdx != planet.PlanetIndex )
+                                continue;
+                            if (wave.gameTimeInSecondsForLaunchWave - World_AIW2.Instance.GameSecond <= 120)
+                                hostileStrength += wave.CalculateStrengthOfWave( aiFaction ) * 5;
+                        }
+                    }
+                    // Get hostile strength.
+                    LongRangePlanningData_PlanetFaction linkedPlanetFactionData = planet.LongRangePlanningData.PlanetFactionDataByIndex[faction.FactionIndex];
+                    LongRangePlanning_StrengthData_PlanetFaction_Stance hostileStrengthData = linkedPlanetFactionData.DataByStance[FactionStance.Hostile];
+                    // If on allied planet, inflate threat massively. It deserves highest priority.
+                    if ( planet.GetControllingFaction() == playerFaction )
+                        hostileStrength += hostileStrengthData.TotalStrength * 10;
+                    else
+                        hostileStrength += hostileStrengthData.TotalStrength;
+
+                    // If on home plant, double all direct (on planet and wave) threat.
+                    if ( planet.PlanetIndex == grandPlanet.PlanetIndex )
+                        hostileStrength *= 2;
+
+                    // Adjacent planet threat matters as well, but not as much as direct threat.
+                    if ( planet.GetControllingFaction() == playerFaction )
+                        planet.DoForLinkedNeighbors( delegate ( Planet linkedPlanet )
+                        {
+                            // Get hostile strength.
+                            linkedPlanetFactionData = linkedPlanet.LongRangePlanningData.PlanetFactionDataByIndex[faction.FactionIndex];
+                            hostileStrengthData = linkedPlanetFactionData.DataByStance[FactionStance.Hostile];
+                            hostileStrength += hostileStrengthData.TotalStrength;
+
+                            // Reduce militia strength for each adjacent planet, to encourage starting buildings.
+                            militiaStrength -= 10000;
+
+                            return DelReturn.Continue;
+                        } );
+
+                    // Get friendly strength on the planet itself. (We never care about friendlies on adjacent planets.)
+                    LongRangePlanningData_PlanetFaction planetFactionData = planet.LongRangePlanningData.PlanetFactionDataByIndex[faction.FactionIndex];
+                    LongRangePlanning_StrengthData_PlanetFaction_Stance friendlyStrengthData = planetFactionData.DataByStance[FactionStance.Friendly];
+                    friendlyStrength += friendlyStrengthData.TotalStrength;
+
+                    // For each militia fleet that has its focus on this planet, subtract either its strength or a flat 10 from its threat, whichever is higher.
+                    // The bigger threats should keep having more fleets thrown at them for as long as possible, without taking absolutely everything.
+                    for ( int x = 0; x < MilitiaLeaders.Count; x++ )
+                    {
+                        GameEntity_Squad militiaCapital = World_AIW2.Instance.GetEntityByID_Squad( MilitiaLeaders[x] );
+                        if ( militiaCapital == null )
+                            continue;
+                        CivilianMilitia militiaData = militiaCapital.GetCivilianMilitiaExt();
+                        if ( militiaData == null )
+                            continue;
+                        if ( militiaData.PlanetFocus == planet.PlanetIndex )
+                        {
+                            // Intensity modifier. Higher the intensity, the more aggressively the faction will defend itself.
+                            int intensityModifier = (int)Math.Pow( 25000, 1 - (faction.Ex_MinorFactionCommon_GetPrimitives().Intensity / 100) );
+                            militiaStrength += Math.Min( 10000, Math.Max( intensityModifier, militiaCapital.FleetMembership.Fleet.CalculateEffectiveCurrentFleetStrength() ) );
+                        }
+                    }
+
+                    // Save our threat value.
+                    ThreatReports.Add( new ThreatReport( planet, militiaStrength, friendlyStrength, hostileStrength ) );
+
+                    return DelReturn.Continue;
+                } );
+                return DelReturn.Continue;
+            } );
+
+            // Sort our reports.
+            ThreatReports.Sort();
         }
 
         // Returns the request points per ship.
-        public int getRequestPoints()
+        public int GetRequestPoints()
         {
             return (11 - World_AIW2.Instance.GetEntityByID_Squad( GrandStation ).PlanetFaction.Faction.Ex_MinorFactionCommon_GetPrimitives().Intensity) * 10;
         }
 
         // Returns the resource cost per ship/turret.
-        public int getResourceCost()
+        public int GetResourceCost( int count )
         {
-            return 50 - (int)Math.Pow( World_AIW2.Instance.GetEntityByID_Squad( GrandStation ).PlanetFaction.Faction.Ex_MinorFactionCommon_GetPrimitives().Intensity, 1.5 );
+            return (int)Math.Pow( 50 - (int)Math.Pow( World_AIW2.Instance.GetEntityByID_Squad( GrandStation ).PlanetFaction.Faction.Ex_MinorFactionCommon_GetPrimitives().Intensity, 1.5 ),
+                1 + count / 100 );
         }
 
         // Returns the current capacity for turrets/ships.
-        public int getCap()
+        public int GetCap()
         {
+            // Explanation:
+            // Minimum 10.
+            // +1 for every aip earnt in total
+            // To the 1.0xth power, where X is equal to intensity. (To the 1.1th power at intensity 10.)
             int cap = 0;
             for ( int y = 0; y < World_AIW2.Instance.AIFactions.Count; y++ )
-                cap = Math.Max( cap, 10 + World_AIW2.Instance.AIFactions[y].GetAICommonExternalData().AIProgress_Total.ToInt() / 10 );
+                cap = (int)(Math.Ceiling( Math.Pow( Math.Max( cap, 10 + World_AIW2.Instance.AIFactions[y].GetAICommonExternalData().AIProgress_Total.ToInt() / 5 ),
+                     1 + (World_AIW2.Instance.GetEntityByID_Squad( GrandStation ).PlanetFaction.Faction.Ex_MinorFactionCommon_GetPrimitives().Intensity / 100) ) ));
             return cap;
         }
 
@@ -202,9 +308,7 @@ namespace Arcen.AIW2.SK
             this.MilitiaLeaders = new List<int>();
             this.BuildCounter = 0;
             this.MilitiaCounter = 0;
-            this.PlanetThreatIndex = new List<int>();
-            this.PlanetThreat = new List<int>();
-            this.PlanetThreatDone = new List<bool>();
+            this.ThreatReports = new List<ThreatReport>();
         }
         // Saving our data.
         public void SerializeTo( ArcenSerializationBuffer Buffer )
@@ -231,14 +335,6 @@ namespace Arcen.AIW2.SK
                 Buffer.AddItem( this.MilitiaLeaders[x] );
             Buffer.AddItem( this.BuildCounter );
             Buffer.AddItem( this.MilitiaCounter );
-            count = this.PlanetThreatIndex.Count; // Only need one count for planets since every planet-related list will have the same number of entries.
-            Buffer.AddItem( count );
-            for ( int x = 0; x < count; x++ )
-            {
-                Buffer.AddItem( this.PlanetThreatIndex[x] );
-                Buffer.AddItem( this.PlanetThreat[x] );
-                Buffer.AddItem( this.PlanetThreatDone[x] );
-            }
         }
         // Loading our data. Make sure the loading order is the same as the saving order.
         public CivilianFaction( ArcenDeserializationBuffer Buffer )
@@ -252,9 +348,6 @@ namespace Arcen.AIW2.SK
             this.CargoShips = new List<int>();
             this.ResourcePoints = new List<int>();
             this.MilitiaLeaders = new List<int>();
-            this.PlanetThreatIndex = new List<int>();
-            this.PlanetThreat = new List<int>();
-            this.PlanetThreatDone = new List<bool>();
             int count = Buffer.ReadInt32();
             for ( int x = 0; x < count; x++ )
                 this.TradeStations.Add( Buffer.ReadInt32() );
@@ -269,13 +362,57 @@ namespace Arcen.AIW2.SK
                 this.MilitiaLeaders.Add( Buffer.ReadInt32() );
             this.BuildCounter = Buffer.ReadInt32();
             this.MilitiaCounter = Buffer.ReadInt32();
-            count = Buffer.ReadInt32();
-            for ( int x = 0; x < count; x++ )
-            {
-                this.PlanetThreatIndex.Add( Buffer.ReadInt32() );
-                this.PlanetThreat.Add( Buffer.ReadInt32() );
-                this.PlanetThreatDone.Add( Buffer.ReadBool() );
-            }
+
+            // Recreate an empty list of threat values on load. Will be populated when needed.
+            this.ThreatReports = new List<ThreatReport>();
+        }
+    }
+
+    // Used to report on the amount of threat on each planet.
+    public class ThreatReport : IComparable<ThreatReport>
+    {
+        public Planet Planet;
+        public int MilitiaStrength;
+        public int FriendlyStrength;
+        public int HostileStrength;
+        public (int Militia, int Friendly, int Hostile, int Actual) GetThreat()
+        {
+            return (MilitiaStrength, FriendlyStrength, HostileStrength, HostileStrength - FriendlyStrength - MilitiaStrength);
+        }
+
+        public ThreatReport( Planet planet, int militiaStrength, int friendlyStrength, int hostileStrength )
+        {
+            Planet = planet;
+            MilitiaStrength = militiaStrength;
+            FriendlyStrength = friendlyStrength;
+            HostileStrength = hostileStrength;
+        }
+
+        public int CompareTo( ThreatReport other )
+        {
+            // We want higher threat to be first in a list, so reverse the normal sorting order.
+            return other.GetThreat().Actual.CompareTo( this.GetThreat().Actual );
+        }
+    }
+
+    // Used to report on how strong an attack would be on a hostile planet.
+    public class AttackAssessment : IComparable<AttackAssessment>
+    {
+        public Planet Target;
+        public Dictionary<Planet, int> Attackers;
+        public int StrengthRequired;
+        public int AttackPower { get { return (from o in Attackers select o.Value).Sum(); } }
+
+        public AttackAssessment( Planet target, int strengthRequired )
+        {
+            Target = target;
+            Attackers = new Dictionary<Planet, int>();
+            StrengthRequired = strengthRequired;
+        }
+        public int CompareTo( AttackAssessment other )
+        {
+            // We want higher threat to be first in a list, so reverse the normal sorting order.
+            return other.AttackPower.CompareTo( this.AttackPower );
         }
     }
 
@@ -342,7 +479,6 @@ namespace Arcen.AIW2.SK
     }
 
     // Used for the creation and sorting of trade requests.
-    // Unlike most of the other classes here, this is not saved and loaded on demand. It is simply created and discarded.
     public class TradeRequest : IComparable<TradeRequest>
     {
         // The resource to be requested.
@@ -501,35 +637,36 @@ namespace Arcen.AIW2.SK
             // Look through our saved factions to find which one has our starting station
             for ( int x = 0; x < worldData.Factions.Count; x++ )
             {
-                CivilianFaction tempData = worldData.getFactionInfo( x ).factionData;
-                if ( tempData.GrandStation == RelatedEntityOrNull.PrimaryKeyID )
-                    factionData = tempData;
+                var tempData = worldData.getFactionInfo( x );
+                if ( tempData.factionData.GrandStation == RelatedEntityOrNull.PrimaryKeyID )
+                {
+                    factionData = tempData.factionData;
+                }
             }
             // Load our cargo data.
             CivilianCargo cargoData = RelatedEntityOrNull.GetCivilianCargoExt();
 
+            // Infinite Goods.
+            Buffer.Add( "\nInfinite supply of Goods" );
+
             // Inform them about what the station has on it.
-            for ( int x = 0; x < cargoData.Amount.Length; x++ )
+            for ( int x = 1; x < cargoData.Amount.Length; x++ )
             {
-                Buffer.Add( "\n" + cargoData.Amount[x] + "/" + cargoData.Capacity[x] + " " + ((CivilianResource)x).ToString() );
-                // If resource has generation or drain, notify them.
-                if ( cargoData.PerSecond[x] != 0 )
-                    Buffer.Add( " +" + cargoData.PerSecond[x] + " per second" );
+                if ( cargoData.Amount[x] > 0 || cargoData.PerSecond[x] != 0 )
+                {
+                    Buffer.Add( "\n" + cargoData.Amount[x] + "/" + cargoData.Capacity[x] + " " + ((CivilianResource)x).ToString() );
+                    // If resource has generation or drain, notify them.
+                    if ( cargoData.PerSecond[x] != 0 )
+                        Buffer.Add( " +" + cargoData.PerSecond[x] + " per second" );
+                }
             }
 
             // If we found our faction data, inform them about build requests in the faction.
             if ( factionData != null )
             {
-                Buffer.Add( "\n" + factionData.BuildCounter + "/" + factionData.CargoShips.Count * factionData.getRequestPoints() + " Request points until next Cargo Ship built." );
-                Buffer.Add( "\n" + factionData.MilitiaCounter + "/" + factionData.MilitiaLeaders.Count * factionData.getRequestPoints() + " Request points until next Miltia ship built." );
+                Buffer.Add( "\n" + factionData.BuildCounter + "/" + factionData.CargoShips.Count * factionData.GetRequestPoints() + " Request points until next Cargo Ship built." );
+                Buffer.Add( "\n" + factionData.MilitiaCounter + "/" + factionData.MilitiaLeaders.Count * factionData.GetRequestPoints() + " Request points until next Miltia ship built." );
             }
-
-            // Inform them about threat towards this planet.
-            int planetIndex = factionData.getIndex( RelatedEntityOrNull.Planet.PlanetIndex );
-            if ( planetIndex != -1 && factionData.PlanetThreat[planetIndex] > 0 )
-                Buffer.Add( "\nThere is currently " + factionData.PlanetThreat[planetIndex] + " threat towards this planet." );
-            else
-                Buffer.Add( "\nThis planet currently feels protected from hostile forces." );
 
             // Add in an empty line to stop any other gunk (such as the fleet display) from messing up our given information.
             Buffer.Add( "\n" );
@@ -552,30 +689,16 @@ namespace Arcen.AIW2.SK
             // Load the faction data of the this trade station.
             // Look through our world data, first, to find which faction controls our trade station, and load its faction data.
             CivilianWorld worldData = World.Instance.GetCivilianWorldExt();
-            CivilianFaction factionData = null;
-            // Look through our saved factions to find which our entity belongs to
-            for ( int x = 0; x < worldData.Factions.Count; x++ )
-            {
-                CivilianFaction tempData = worldData.getFactionInfo( x ).factionData;
-                if ( tempData.TradeStations.Contains( RelatedEntityOrNull.PrimaryKeyID ) )
-                    factionData = tempData;
-            }
 
             // Inform them about what the station has on it.
             for ( int x = 0; x < cargoData.Amount.Length; x++ )
             {
-                Buffer.Add( "\n" + cargoData.Amount[x] + "/" + cargoData.Capacity[x] + " " + ((CivilianResource)x).ToString() );
+                if ( cargoData.Amount[x] > 0 || cargoData.PerSecond[x] != 0 )
+                    Buffer.Add( "\n" + cargoData.Amount[x] + "/" + cargoData.Capacity[x] + " " + ((CivilianResource)x).ToString() );
                 // If resource has generation or drain, notify them.
                 if ( cargoData.PerSecond[x] != 0 )
                     Buffer.Add( " +" + cargoData.PerSecond[x] + " per second" );
             }
-
-            // Inform them about threat towards this planet.
-            int planetIndex = factionData.PlanetThreatIndex.IndexOf( RelatedEntityOrNull.Planet.PlanetIndex );
-            if ( planetIndex != -1 && factionData.PlanetThreat[planetIndex] > 0 )
-                Buffer.Add( "\nThere is currently " + factionData.PlanetThreat[planetIndex] + " threat towards this planet." );
-            else
-                Buffer.Add( "\nThis planet currently feels protected from hostile forces." );
 
             // Add in an empty line to stop any other gunk (such as the fleet display) from messing up our given information.
             Buffer.Add( "\n" );
@@ -646,13 +769,11 @@ namespace Arcen.AIW2.SK
                 return;
 
             for ( int x = 0; x < cargoData.Amount.Length; x++ )
+            {
+                if ( ((CivilianResource)x) == CivilianResource.Goods || ((CivilianResource)x) == CivilianResource.Length )
+                    continue;
                 if ( cargoData.Capacity[x] > 0 )
                 {
-                    // Cargo information.
-                    Buffer.Add( "\n" + cargoData.Amount[x] + "/" + cargoData.Capacity[x] + " " + ((CivilianResource)x).ToString() );
-                    if ( ((CivilianResource)x) == CivilianResource.Goods || ((CivilianResource)x) == CivilianResource.Length )
-                        continue;
-
                     // Forces information.
                     GameEntityTypeData typeData = null;
                     if ( militiaData.Status == CivilianMilitiaStatus.Defending )
@@ -669,17 +790,26 @@ namespace Arcen.AIW2.SK
                         count = 0;
                     }
 
-                    // If one is built, or it has the resources to begin building one, display it.
-                    if ( count > 0 || cargoData.Amount[x] > 0 )
+                    // Display only if we have already received a resource of the type.
+                    if ( cargoData.Amount[x] > 0 || count > 0 || militiaData.ProcessedResources[x] > 0 )
                     {
-                        Buffer.Add( " " + count + "/" + factionData.getCap() + " " + typeData.DisplayName );
-                        // If at least one metal, list time until next.
-                        if ( cargoData.Amount[x] > 0 )
-                            Buffer.Add( " (Processing " + ((CivilianResource)x).ToString() + ", " + (((count + 1) * factionData.getResourceCost()) - militiaData.ProcessedResources[x]) + " seconds left.)" );
-                        else
-                            Buffer.Add( " (Building Paused, no " + ((CivilianResource)x).ToString() + ")" );
+
+                        // Cargo information.
+                        Buffer.Add( "\n" + cargoData.Amount[x] + "/" + cargoData.Capacity[x] + " " + ((CivilianResource)x).ToString() );
+
+                        // If one is built, or it has the resources to begin building one, display it.
+                        if ( count > 0 || cargoData.Amount[x] > 0 )
+                        {
+                            Buffer.Add( " " + count + "/" + factionData.GetCap() + " " + typeData.DisplayName );
+                            // If at least one metal, list time until next.
+                            if ( cargoData.Amount[x] > 0 )
+                                Buffer.Add( " (Processing " + ((CivilianResource)x).ToString() + ", " + ((factionData.GetResourceCost( count )) - militiaData.ProcessedResources[x]) + " seconds left.)" );
+                            else
+                                Buffer.Add( " (Building Paused, no " + ((CivilianResource)x).ToString() + ")" );
+                        }
                     }
                 }
+            }
             // Inform them about what the ship is doing.
             Buffer.Add( "\nThis ship is currently " + militiaData.Status.ToString() + "." );
 
@@ -705,8 +835,7 @@ namespace Arcen.AIW2.SK
         protected override bool EverNeedsToRunLongRangePlanning => true;
 
         // How often our DoLongRangePlanning_OnBackgroundNonSimThread_Subclass function is called in seconds.
-        // In our case, we'll be doing it once per 3 seconds.
-        protected override FInt MinimumSecondsBetweenLongRangePlannings => FInt.FromParts( 3, 000 );
+        protected override FInt MinimumSecondsBetweenLongRangePlannings => FInt.FromParts( 5, 000 );
 
         // Set up initial relationships.
         public override void SetStartingFactionRelationships( Faction faction )
@@ -772,12 +901,12 @@ namespace Arcen.AIW2.SK
                  factionData.ResourcePoints.Add( grandStation.PrimaryKeyID );
 
                  // Initialize cargo.
-                 // Grand station has an incredibly high Goods and Metal capacity, and generates Goods per second.
+                 // Grand station has an incredibly high capacity of every resource, and produces an essentially infinite supply of goods.
                  CivilianCargo grandCargo = grandStation.GetCivilianCargoExt();
-                 grandCargo.Capacity[(int)CivilianResource.Goods] *= 100;
                  grandCargo.Amount[(int)CivilianResource.Goods] = grandCargo.Capacity[(int)CivilianResource.Goods] / 2;
                  grandCargo.PerSecond[(int)CivilianResource.Goods] = 10;
-                 grandCargo.Capacity[(int)CivilianResource.Metal] *= 100;
+                 for ( int y = 0; y < grandCargo.Capacity.Length; y++ )
+                     grandCargo.Capacity[y] *= 100;
                  grandStation.SetCivilianCargoExt( grandCargo );
 
                  return DelReturn.Break;
@@ -846,13 +975,13 @@ namespace Arcen.AIW2.SK
                  // Initialize cargo.
                  CivilianCargo tradeCargo = tradeStation.GetCivilianCargoExt();
                  // Large capacity.
-                 tradeCargo.Capacity[(int)CivilianResource.Goods] *= 10;
-                 tradeCargo.Capacity[(int)CivilianResource.Metal] *= 10;
-                 // Drains 1 Cargo per second to remain active, starts with a small stockpile.
+                 for ( int y = 0; y < tradeCargo.Capacity.Length; y++ )
+                     tradeCargo.Capacity[y] *= 10;
+                 // Drains 1 Goods per second to remain active, starts with a small stockpile.
                  tradeCargo.PerSecond[(int)CivilianResource.Goods] = -1;
                  // Starts with a healthy supply of Goods to keep itself running.
                  tradeCargo.Amount[(int)CivilianResource.Goods] = tradeCargo.Capacity[(int)CivilianResource.Goods];
-                 // Generates 1 metal per second for every mine on the planet.
+                 // Generates 1 random resource per second for every mine on the planet.
                  int mines = 0;
                  tradeStation.Planet.DoForEntities( EntityRollupType.MetalProducers, delegate ( GameEntity_Squad mineEntity )
                  {
@@ -861,7 +990,7 @@ namespace Arcen.AIW2.SK
 
                      return DelReturn.Continue;
                  } );
-                 tradeCargo.PerSecond[(int)CivilianResource.Metal] = mines;
+                 tradeCargo.PerSecond[Context.RandomToUse.Next( (int)CivilianResource.Goods + 1, (int)CivilianResource.Length )] = mines;
 
                  tradeStation.SetCivilianCargoExt( tradeCargo );
 
@@ -879,59 +1008,64 @@ namespace Arcen.AIW2.SK
                 GameEntity_Squad entity = World_AIW2.Instance.GetEntityByID_Squad( factionData.ResourcePoints[x] );
                 CivilianCargo entityCargo = entity.GetCivilianCargoExt();
 
-                // If Grand Station, update its Goods generation.
-                // It gets 5 + 5 for every trade station in the faction.
-                if ( x == (int)CivilianResource.Goods && entity.PrimaryKeyID == factionData.GrandStation )
-                    entityCargo.PerSecond[x] = 5 + factionData.TradeStations.Count * 5;
-
-                // First, make sure it can pay all of its costs.
-                bool canPay = true;
-                for ( int y = 0; y < entityCargo.PerSecond.Length; y++ )
+                // If Grand Station, max out its goods.
+                if ( entity.PrimaryKeyID == factionData.GrandStation )
                 {
-                    if ( entityCargo.PerSecond[y] < 0 )
-                    {
-                        // Make sure it has enough resources to cover its cost.
-                        if ( entityCargo.Amount[y] < Math.Abs( entityCargo.PerSecond[y] ) )
-                        {
-                            canPay = false;
-                            break;
-                        }
-                    }
+                    entityCargo.Amount[(int)CivilianResource.Goods] = entityCargo.Capacity[(int)CivilianResource.Goods];
+                    continue;
                 }
 
-                if ( !canPay )
+                // If it needs good to function, pay it.
+                bool paid = true;
+                if ( entityCargo.PerSecond[(int)CivilianResource.Goods] < 0 )
+                {
+                    // Make sure it has enough resources to cover its cost.
+                    if ( entityCargo.Amount[(int)CivilianResource.Goods] < Math.Abs( entityCargo.PerSecond[(int)CivilianResource.Goods] ) )
+                        paid = false;
+                    else
+                        entityCargo.Amount[(int)CivilianResource.Goods] = Math.Min( entityCargo.Capacity[(int)CivilianResource.Goods], entityCargo.Amount[(int)CivilianResource.Goods] + entityCargo.PerSecond[(int)CivilianResource.Goods] );
+                }
+
+                if ( !paid )
                     continue;
 
                 // Now, deal with its per second values.
-                for ( int y = 0; y < entityCargo.PerSecond.Length; y++ )
+                for ( int y = 1; y < entityCargo.PerSecond.Length; y++ )
                 {
                     if ( entityCargo.PerSecond[y] != 0 )
                     {
-                        // Resource change.
-                        entityCargo.Amount[y] = Math.Min( entityCargo.Capacity[y], entityCargo.Amount[y] + entityCargo.PerSecond[y] );
-
-                        // Building logic.
-                        // Militia buildings.
-                        if ( entity.TypeData.GetHasTag( "MilitiaShip" ) )
+                        // Update the resource, if able.
+                        if ( entityCargo.PerSecond[y] > 0 || (entityCargo.Amount[y] >= Math.Abs( entityCargo.PerSecond[y] )) )
                         {
-                            // If militia ship count is below cap, process the resource.
-                            // Get ship or turret type based on resource.
-                            GameEntityTypeData typeData = GameEntityTypeDataTable.Instance.GetRowByName( ((CivilianMilitiaTurretType)y).ToString(), false, null );
-                            int count;
-                            try
+                            // Building logic.
+                            // Militia buildings.
+                            if ( entity.TypeData.GetHasTag( "MilitiaShip" ) )
                             {
-                                count = entity.FleetMembership.Fleet.GetButDoNotAddMembershipGroupBasedOnSquadType_AssumeNoDuplicates( typeData ).Entities.Count;
+                                // If militia ship count is below cap, process the resource.
+                                // Get ship or turret type based on resource.
+                                GameEntityTypeData typeData = GameEntityTypeDataTable.Instance.GetRowByName( ((CivilianMilitiaTurretType)y).ToString(), false, null );
+                                int count;
+                                try
+                                {
+                                    count = entity.FleetMembership.Fleet.GetButDoNotAddMembershipGroupBasedOnSquadType_AssumeNoDuplicates( typeData ).Entities.Count;
+                                }
+                                catch ( Exception )
+                                {
+                                    count = 0;
+                                }
+                                // If count is below cap, proccess.
+                                if ( count < factionData.GetCap() )
+                                {
+                                    entityCargo.Amount[y] = Math.Min( entityCargo.Capacity[y], entityCargo.Amount[y] + entityCargo.PerSecond[y] );
+                                    CivilianMilitia militiaData = entity.GetCivilianMilitiaExt();
+                                    militiaData.ProcessedResources[y] -= entityCargo.PerSecond[y];
+                                    entity.SetCivilianMilitiaExt( militiaData );
+                                }
                             }
-                            catch ( Exception )
+                            // Other Buildings, process.
+                            else
                             {
-                                count = 0;
-                            }
-                            // If count is below cap, proccess.
-                            if ( count < factionData.getCap() )
-                            {
-                                CivilianMilitia militiaData = entity.GetCivilianMilitiaExt();
-                                militiaData.ProcessedResources[y] -= entityCargo.PerSecond[y];
-                                entity.SetCivilianMilitiaExt( militiaData );
+                                entityCargo.Amount[y] = Math.Min( entityCargo.Capacity[y], entityCargo.Amount[y] + entityCargo.PerSecond[y] );
                             }
                         }
                     }
@@ -955,7 +1089,7 @@ namespace Arcen.AIW2.SK
             // Build a cargo ship if one of the following is true:
             // Less than 10 cargo ships.
             // More than 10 cargo ships, and build counter is > # of cargo ships * 100.
-            if ( factionData.CargoShips.Count < 10 || factionData.BuildCounter > factionData.CargoShips.Count * factionData.getRequestPoints() )
+            if ( factionData.CargoShips.Count < 10 || factionData.BuildCounter > factionData.CargoShips.Count * factionData.GetRequestPoints() )
             {
                 // Load our cargo ship's data.
                 GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "CargoShip" );
@@ -980,7 +1114,7 @@ namespace Arcen.AIW2.SK
             // Build a militia ship if one of the following is true:
             // Less than 1 militia ships.
             // More than 1 militia ship, and build counter is > # of militia ships * 50.
-            if ( factionData.MilitiaLeaders.Count < 1 || factionData.MilitiaCounter > factionData.MilitiaLeaders.Count * factionData.getRequestPoints() )
+            if ( factionData.MilitiaLeaders.Count < 1 || factionData.MilitiaCounter > factionData.MilitiaLeaders.Count * factionData.GetRequestPoints() )
             {
                 // Load our militia ship's data.
                 GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "MilitiaCapitalShip" );
@@ -1410,7 +1544,7 @@ namespace Arcen.AIW2.SK
                     }
                     // If we failed to find a station, and we're looking for goods, we can always get them from the grand station.
                     // So lets do that, assuming its within hop radius.
-                    if ( otherStation == null && tradeRequests[x].Requested == CivilianResource.Goods 
+                    if ( otherStation == null && tradeRequests[x].Requested == CivilianResource.Goods
                       && requestingEntity.PrimaryKeyID != factionData.GrandStation
                       && requestingEntity.Planet.GetHopsTo( World_AIW2.Instance.GetEntityByID_Squad( factionData.GrandStation ).Planet ) < numOfHops )
                         otherStation = World_AIW2.Instance.GetEntityByID_Squad( factionData.GrandStation );
@@ -1434,7 +1568,7 @@ namespace Arcen.AIW2.SK
                         foundCargoShip.SetCivilianStatusExt( cargoShipStatus );
                         // Remove the completed entities from processing.
                         tradeRequests[x].Processed = true;
-                        if (otherRequest != null)
+                        if ( otherRequest != null )
                             otherRequest.Processed = true;
                         freeShipIndexes.Remove( factionData.CargoShips.IndexOf( foundCargoShip.PrimaryKeyID ) );
                     }
@@ -1446,164 +1580,9 @@ namespace Arcen.AIW2.SK
                 factionData.BuildCounter += (from o in tradeRequests select o.Urgency).Sum();
         }
 
-        // Calculate threat where needed.
-        public void DoThreatCalculation( Faction faction, Faction playerFaction, CivilianFaction factionData, ArcenSimContext Context )
+        // Handle assigning militia to our ThreatReports.
+        public void DoMilitiaAssignment( Faction faction, Faction playerFaction, CivilianFaction factionData, ArcenSimContext Context )
         {
-            // Start by setting the flag for each planet being processed to false. Since trade stations WILL have overlapping zones, we only want each planet done once.
-            for ( int x = 0; x < factionData.PlanetThreatDone.Count; x++ )
-                factionData.PlanetThreatDone[x] = false;
-
-            // Get the grand station's planet, to easily figure out when we're processing the home planet.
-            GameEntity_Squad grandStation = World_AIW2.Instance.GetEntityByID_Squad( factionData.GrandStation );
-            if ( grandStation == null )
-                return;
-            Planet grandPlanet = grandStation.Planet;
-            if ( grandPlanet == null )
-                return;
-
-            // For every planet the player faction controls, process it and its neighbors.
-            playerFaction.DoForControlledPlanets( delegate ( Planet planet )
-             {
-                 // Get the faction data index value for the planet.
-                 // If one doesn't exist, it will create one first before giving us an index to work with.
-                 int index = factionData.getIndex( planet.PlanetIndex );
-
-                 // Stop if its already been processed this second.
-                 if ( factionData.PlanetThreatDone[index] )
-                     return DelReturn.Continue; ;
-
-                 // Prepare variables to hold our soon to be detected threat values.
-                 int friendlyThreat = 0, hostileThreat = 0, actualThreat = 0;
-
-                 // Wave detection.
-                 for ( int j = 0; j < World_AIW2.Instance.AIFactions.Count; j++ )
-                 {
-                     Faction aiFaction = World_AIW2.Instance.AIFactions[j];
-                     List<PlannedWave> QueuedWaves = aiFaction.GetWaveList();
-                     for ( int k = 0; k < QueuedWaves.Count; k++ )
-                     {
-                         PlannedWave wave = QueuedWaves[k];
-                         if ( wave.targetPlanetIdx != planet.PlanetIndex )
-                             continue;
-                         // Incoming waves are a big potential threat for the planet. Double its strength is added to the planet's threat.
-                         hostileThreat += wave.CalculateStrengthOfWave( aiFaction ) * 2;
-                     }
-                 }
-
-                 // Get the strength of hostile ships on all adjacent planets.
-                 planet.DoForLinkedNeighborsAndSelf( delegate ( Planet linkedPlanet )
-                  {
-                      // Get hostile strength.
-                      LongRangePlanningData_PlanetFaction linkedPlanetFactionData = linkedPlanet.LongRangePlanningData.PlanetFactionDataByIndex[faction.FactionIndex];
-                      LongRangePlanning_StrengthData_PlanetFaction_Stance hostileStrengthData = linkedPlanetFactionData.DataByStance[FactionStance.Hostile];
-
-
-                      // If on friendly planet, double effective hostile strength.
-                      if ( linkedPlanet.GetControllingFaction().GetIsFriendlyTowards( faction ) )
-                          hostileThreat += hostileStrengthData.TotalStrength * 2;
-                      else
-                          hostileThreat += hostileStrengthData.TotalStrength;
-
-                      return DelReturn.Continue;
-                  } );
-
-                 // Get friendly strength on the planet itself. (It doesn't care about friendlies on adjacent planets.)
-                 LongRangePlanningData_PlanetFaction planetFactionData = planet.LongRangePlanningData.PlanetFactionDataByIndex[faction.FactionIndex];
-                 LongRangePlanning_StrengthData_PlanetFaction_Stance friendlyStrengthData = planetFactionData.DataByStance[FactionStance.Friendly];
-                 friendlyThreat += friendlyStrengthData.TotalStrength;
-
-                 // If on home planet, double hostile threat. Threats on the homeworld are not taken lightly.
-                 if ( planet.PlanetIndex == grandPlanet.PlanetIndex )
-                     hostileThreat *= 2;
-
-                 // Actual threat value is equal to hostile threat - friendly threat.
-                 actualThreat += (hostileThreat - friendlyThreat) / 1000;
-
-                 // For each militia fleet that has its focus on this planet, subtract either 25% or a flat 10 from its threat, whichever is higher.
-                 // Intentially has each fleet after the first subtract less and less.
-                 // The bigger threats should keep having more fleets thrown at them for as long as possible, without taking absolutely everything.
-                 for ( int x = 0; x < factionData.MilitiaLeaders.Count; x++ )
-                 {
-                     GameEntity_Squad militiaCapital = World_AIW2.Instance.GetEntityByID_Squad( factionData.MilitiaLeaders[x] );
-                     if ( militiaCapital == null )
-                         continue;
-                     CivilianMilitia militiaData = militiaCapital.GetCivilianMilitiaExt();
-                     if ( militiaData == null )
-                         continue;
-                     if ( militiaData.PlanetFocus == planet.PlanetIndex )
-                         actualThreat -= Math.Max( actualThreat / 4, 10 );
-                 }
-
-                 // Save our threat value to the faction data.
-                 factionData.PlanetThreat[index] = actualThreat;
-
-                 // Confirm that the planet has been processed.
-                 factionData.PlanetThreatDone[index] = true;
-                 return DelReturn.Continue;
-             } );
-        }
-
-        // Handle the orders given to the civilian militia.
-        public void DoMilitiaOrders( Faction faction, Faction playerFaction, CivilianFaction factionData, ArcenSimContext Context )
-        {
-            // Militia works based on a request system.
-            // Whenever a friendly planet has threat on either itself, or there is enough threat on a planet adjacent to it that is higher than its defenses, the local trade station will send out a request for aid.
-            // If there is an unused Militia Capital Ship either idle, or defending a planet with a super low threat nearby, it will gather its forces and start moving towards the requesting station.
-            // If there is not a free Militia Capital Ship, the station puts in requests points for a new one based on how big of a threat the planet is facing.
-            // On arrival at the trade station, it will determine which wormhole (that is not already claimed by another Miltia Fleet on the planet) has the highest threat.
-            // It will than begin moving towards said wormhole, stopping once it is in optimal range and it will convert itself into a Militia Outpost.
-            // At this point, the Militia Outpost will send out requests for metal and use metal brought to it to build up a healthy supply of turrets.
-            // Once they deem their defense order done, for any reason, they will begin Packing up their static defenses, converting them into mobile forces for their fleet.
-            // If all wormholes are covered (but the threat is still super high), the Militia Capital Ship will instead build up a mobile fleet.
-            // These mobile fleets will aid any player attacks on adjacent planets if they believe the attack to not be suicidal.
-
-            // Our custom lists to hold our planets, sorted from highest threat value to lowest.
-            List<Planet> planets = new List<Planet>();
-            List<int> threats = new List<int>();
-
-            // Handle once for each planet we have threat value on.
-            for ( int x = 0; x < factionData.PlanetThreat.Count; x++ )
-            {
-                // Get the planet, and its threat value.
-                Planet planet = World_AIW2.Instance.GetPlanetByIndex( factionData.PlanetThreatIndex[x] );
-                if ( planet == null )
-                    continue;
-                int threat = factionData.PlanetThreat[x];
-                // If threat isn't above 0, skip.
-                if ( threat <= 0 )
-                    continue;
-
-                // If first value, simply add it.
-                if ( planets.Count == 0 )
-                {
-                    planets.Add( planet );
-                    threats.Add( threat );
-                }
-                else
-                {
-                    // Insert it into the list where it belongs.
-                    for ( int y = 0; y < planets.Count; y++ )
-                    {
-                        // Keep going until we get to a threat value lower than ours.
-                        if ( threats[y] > threat )
-                        {
-                            // If we're at the end of the list, add it to the end. Otherwise, keep processing.
-                            if ( y == planets.Count - 1 )
-                            {
-                                planets.Add( planet );
-                                threats.Add( threat );
-                                break;
-                            }
-                            else
-                                continue;
-                        }
-
-                        planets.Insert( y, planet );
-                        threats.Insert( y, threat );
-                        break;
-                    }
-                }
-            }
             // Get a list of free militia leaders.
             List<GameEntity_Squad> freeMilitia = new List<GameEntity_Squad>();
 
@@ -1622,18 +1601,21 @@ namespace Arcen.AIW2.SK
                     freeMilitia.Add( militiaLeader );
             }
 
-            // For each threat that we would be unable to find a militia fleet for, send a request and remove the least threatened planet.
-            while ( freeMilitia.Count < planets.Count )
-            {
-                factionData.MilitiaCounter += threats[threats.Count - 1];
-                planets.RemoveAt( planets.Count - 1 );
-                threats.RemoveAt( threats.Count - 1 );
-            }
-
             // Deal with militia requests.
-            for ( int x = 0; x < planets.Count; x++ )
+            for ( int x = 0; x < factionData.ThreatReports.Count; x++ )
             {
-                Planet threatenedPlanet = planets[x];
+                // If not our planet, or we already have enough militia to counteract threat, skip.
+                if ( factionData.ThreatReports[x].Planet.GetControllingFaction() != playerFaction
+                  || factionData.ThreatReports[x].GetThreat().Actual <= 0 )
+                    continue;
+
+                // If we ran out of free militia, update our request.
+                if ( freeMilitia.Count == 0 )
+                {
+                    factionData.MilitiaCounter += ((factionData.ThreatReports[x].GetThreat().Hostile - factionData.ThreatReports[x].GetThreat().Militia) / 1000);
+                    continue;
+                }
+
                 // Find the closest militia ship. Default to first in the list.
                 GameEntity_Squad militia = freeMilitia[0];
                 // If there is at least one more ship, find the closest to our planet, and pick that one.
@@ -1641,7 +1623,7 @@ namespace Arcen.AIW2.SK
                 {
                     for ( int y = 1; y < freeMilitia.Count; y++ )
                     {
-                        if ( freeMilitia[y].Planet.GetHopsTo( threatenedPlanet ) < militia.Planet.GetHopsTo( threatenedPlanet ) )
+                        if ( freeMilitia[y].Planet.GetHopsTo( factionData.ThreatReports[x].Planet ) < militia.Planet.GetHopsTo( factionData.ThreatReports[x].Planet ) )
                             militia = freeMilitia[y];
                     }
                 }
@@ -1651,14 +1633,14 @@ namespace Arcen.AIW2.SK
                 // Assign our militia to the planet.
                 // See if any wormholes to hostile planets are still unassigned.
                 GameEntity_Other foundWormhole = null;
-                threatenedPlanet.DoForLinkedNeighbors( delegate ( Planet otherPlanet )
+                factionData.ThreatReports[x].Planet.DoForLinkedNeighbors( delegate ( Planet otherPlanet )
                  {
                      // Make sure its a non-player owned planet.
                      if ( otherPlanet.GetControllingFaction().Type == FactionType.Player )
                          return DelReturn.Continue;
 
                      // Get its wormhole.
-                     GameEntity_Other wormhole = threatenedPlanet.GetWormholeTo( otherPlanet );
+                     GameEntity_Other wormhole = factionData.ThreatReports[x].Planet.GetWormholeTo( otherPlanet );
                      if ( wormhole == null )
                          return DelReturn.Continue;
 
@@ -1694,7 +1676,7 @@ namespace Arcen.AIW2.SK
 
                 // Update the militia's status.
                 CivilianMilitia militiaStatus = militia.GetCivilianMilitiaExt();
-                militiaStatus.PlanetFocus = threatenedPlanet.PlanetIndex;
+                militiaStatus.PlanetFocus = factionData.ThreatReports[x].Planet.PlanetIndex;
                 militiaStatus.Status = CivilianMilitiaStatus.Pathing;
 
                 // If we found a wormhole, assign it.
@@ -1708,7 +1690,7 @@ namespace Arcen.AIW2.SK
             }
         }
 
-        // Handle militia deployment.
+        // Handle militia deployment and unit building.
         public void DoMilitiaDeployment( Faction faction, Faction playerFaction, CivilianFaction factionData, ArcenSimContext Context )
         {
             // Handle once for each militia leader.
@@ -1878,17 +1860,15 @@ namespace Arcen.AIW2.SK
                         {
                             count = 0;
                         }
-                        if ( count >= factionData.getCap() )
+                        if ( count >= factionData.GetCap() )
                             continue;
 
                         // Get cargo and ship cost.
-                        int i = (int)CivilianResource.Metal;
-
-                        int cost = (count + 1) * factionData.getResourceCost();
-                        if ( militiaStatus.ProcessedResources[i] >= cost )
+                        int cost = factionData.GetResourceCost( count );
+                        if ( militiaStatus.ProcessedResources[y] >= cost )
                         {
                             // Remove cost.
-                            militiaStatus.ProcessedResources[i] -= cost;
+                            militiaStatus.ProcessedResources[y] -= cost;
                             // Spawn turret.
                             // Get a focal point directed towards the wormhole.
                             ArcenPoint basePoint = militiaShip.WorldLocation.GetPointAtAngleAndDistance( militiaShip.WorldLocation.GetAngleToDegrees( militiaStatus.getWormhole().WorldLocation ), Math.Min( 5000, goalStation.GetDistanceTo_ExpensiveAccurate( militiaStatus.getWormhole().WorldLocation, true, true ) / 2 ) );
@@ -1896,7 +1876,7 @@ namespace Arcen.AIW2.SK
                             ArcenPoint spawnPoint = basePoint.GetRandomPointWithinDistance( Context.RandomToUse, Math.Min( 500, goalStation.GetDistanceTo_ExpensiveAccurate( militiaStatus.getWormhole().WorldLocation, true, true ) / 4 ), Math.Min( 2500, goalStation.GetDistanceTo_ExpensiveAccurate( militiaStatus.getWormhole().WorldLocation, true, true ) / 2 ) );
 
                             // Load turret data. Default for metal: Pike
-                            GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRowByName( ((CivilianMilitiaTurretType)i).ToString(), false, null );
+                            GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRowByName( ((CivilianMilitiaTurretType)y).ToString(), false, null );
 
                             // Get the planet faction to spawn it in as.
                             PlanetFaction pFaction = militiaShip.Planet.GetPlanetFactionForFaction( faction );
@@ -1928,20 +1908,19 @@ namespace Arcen.AIW2.SK
                         {
                             count = 0;
                         }
-                        if ( count >= factionData.getCap() )
+                        if ( count >= factionData.GetCap() )
                             continue;
 
                         // Get cargo and ship cost.
-                        int i = (int)CivilianResource.Metal;
-                        int cost = (count + 1) * factionData.getResourceCost();
-                        if ( militiaStatus.ProcessedResources[i] >= cost )
+                        int cost = factionData.GetResourceCost( count );
+                        if ( militiaStatus.ProcessedResources[y] >= cost )
                         {
                             // Remove cost.
-                            militiaStatus.ProcessedResources[i] -= cost;
+                            militiaStatus.ProcessedResources[y] -= cost;
                             // Spawn ship.
 
                             // Load ship data for metal.
-                            GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRowByName( ((CivilianMilitiaShipType)i).ToString(), false, null ); ;
+                            GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRowByName( ((CivilianMilitiaShipType)y).ToString(), false, null ); ;
 
                             // Get the planet faction to spawn it in as.
                             PlanetFaction pFaction = militiaShip.Planet.GetPlanetFactionForFaction( faction );
@@ -2029,12 +2008,12 @@ namespace Arcen.AIW2.SK
                 DoTradeRequests( faction, playerFaction, factionData, Context );
 
                 // Calculate the threat on all planets that need it.
-                DoThreatCalculation( faction, playerFaction, factionData, Context );
+                factionData.CalculateThreat( faction, playerFaction );
 
-                // Handle everything related to milita orders.
-                DoMilitiaOrders( faction, playerFaction, factionData, Context );
+                // Handle assigning militia to our ThreatReports.
+                DoMilitiaAssignment( faction, playerFaction, factionData, Context );
 
-                // Handle militia deployment on ordered defenses.
+                // Handle militia deployment and unit building.
                 DoMilitiaDeployment( faction, playerFaction, factionData, Context );
 
                 // Save our faction data.
@@ -2160,8 +2139,8 @@ namespace Arcen.AIW2.SK
             }
         }
 
-        // Handle movement of militia ships.
-        public void DoMilitiaShipMovement( Faction faction, Faction playerFaction, CivilianFaction factionData, ArcenLongTermIntermittentPlanningContext Context )
+        // Handle movement of militia capital ships.
+        public void DoMilitiaCapitalShipMovement( Faction faction, Faction playerFaction, CivilianFaction factionData, ArcenLongTermIntermittentPlanningContext Context )
         {
             // Loop through each of our militia ships.
             for ( int x = 0; x < factionData.MilitiaLeaders.Count; x++ )
@@ -2273,6 +2252,303 @@ namespace Arcen.AIW2.SK
             }
         }
 
+        // Handle reactive moevement of patrolling ship fleets.
+        public void DoMilitiaThreatReaction( Faction faction, Faction playerFaction, CivilianFaction factionData, ArcenLongTermIntermittentPlanningContext Context )
+        {
+            // If we don't have any threat reports yet (usually due to game load) wait.
+            if ( factionData.ThreatReports == null || factionData.ThreatReports.Count == 0 )
+                return;
+
+            // Amount of strength ready to raid on each planet.
+            // This means that it, and all friendly planets adjacent to it, are safe.
+            Dictionary<Planet, int> raidStrength = new Dictionary<Planet, int>();
+
+            // Process all militia forces that are currently patrolling.
+            #region Defensive Actions
+            for ( int x = 0; x < factionData.MilitiaLeaders.Count; x++ )
+            {
+                GameEntity_Squad centerpiece = World_AIW2.Instance.GetEntityByID_Squad( factionData.MilitiaLeaders[x] );
+                if ( centerpiece == null || centerpiece.GetCivilianMilitiaExt().Status != CivilianMilitiaStatus.Patrolling )
+                    continue;
+
+                // Where are we going to send all our units?
+                Planet targetPlanet = null;
+
+                // Is it a high priority?
+                bool highPriority = false;
+
+                // If self or an adjacent friendly planet has hostile units on it that outnumber friendly defenses, including incoming waves, protect it.
+                for ( int y = 0; y < factionData.ThreatReports.Count && targetPlanet == null; y++ )
+                {
+                    ThreatReport report = factionData.ThreatReports[y];
+
+                    if ( report.GetThreat().Hostile - report.GetThreat().Friendly > 0
+                     && report.Planet.GetControllingFaction() == playerFaction
+                     && report.Planet.GetHopsTo( centerpiece.Planet ) <= 1 )
+                    {
+                        targetPlanet = report.Planet;
+                        // If its us or our Grand Station's planet, rush there.
+                        if ( (World_AIW2.Instance.GetEntityByID_Squad( factionData.GrandStation ) != null
+                         && World_AIW2.Instance.GetEntityByID_Squad( factionData.GrandStation ).Planet == targetPlanet)
+                         || targetPlanet == centerpiece.Planet )
+                            highPriority = true;
+                    }
+                }
+
+                // If we have a target for defensive action, act on it.
+                if ( targetPlanet != null )
+                {
+                    centerpiece.FleetMembership.Fleet.DoForEntities( delegate ( GameEntity_Squad entity )
+                    {
+                        // If its not urgent, and we have hostile forces on our current planet, finish our fight first.
+                        if ( factionData.GetThreat( entity.Planet ).Actual > 0 && !highPriority )
+                            return DelReturn.Continue;
+                        // If we're not on our target yet, path to it.
+                        if ( entity.Planet != targetPlanet )
+                        {
+                            // If we're not on the target planet, return to our centerpiece's planet first, to make sure we don't path through hostile territory.
+                            if ( entity.Planet != centerpiece.Planet )
+                            {
+                                // Get a path for the ship to take, and give them the command.
+                                List<Planet> path = faction.FindPath( entity.Planet, centerpiece.Planet, Context );
+
+                                // Create and add all required parts of a wormhole move command.
+                                GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath], GameCommandSource.AnythingElse );
+                                command.RelatedEntityIDs.Add( entity.PrimaryKeyID );
+                                for ( int y = 0; y < path.Count; y++ )
+                                    command.RelatedIntegers.Add( path[y].PlanetIndex );
+                                Context.QueueCommandForSendingAtEndOfContext( command );
+                            }
+                            else
+                            {
+                                // Get a path for the ship to take, and give them the command.
+                                List<Planet> path = faction.FindPath( entity.Planet, targetPlanet, Context );
+
+                                // Create and add all required parts of a wormhole move command.
+                                GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath], GameCommandSource.AnythingElse );
+                                command.RelatedEntityIDs.Add( entity.PrimaryKeyID );
+                                for ( int y = 0; y < path.Count; y++ )
+                                    command.RelatedIntegers.Add( path[y].PlanetIndex );
+                                Context.QueueCommandForSendingAtEndOfContext( command );
+                            }
+                        }
+
+                        return DelReturn.Continue;
+                    } );
+                }
+                else
+                {
+                    // If we have at least one planet adjacent to us that is hostile, add to the raiding pool.
+                    if ( (from o in factionData.ThreatReports where o.Planet.GetHopsTo( centerpiece.Planet ) == 1 select o).Count() > 0 )
+                    {
+                        if ( raidStrength.ContainsKey( centerpiece.Planet ) )
+                            raidStrength[centerpiece.Planet] += (centerpiece.FleetMembership.Fleet.CalculateEffectiveCurrentFleetStrength() - centerpiece.GetStrengthOfSelfAndContents());
+                        else
+                            raidStrength.Add( centerpiece.Planet, (centerpiece.FleetMembership.Fleet.CalculateEffectiveCurrentFleetStrength() - centerpiece.GetStrengthOfSelfAndContents()) );
+                    }
+                    else
+                    {
+                        // Otherwise, send our units to the planet adjacen to us with the largest threat, negative or otherwise.
+                        for ( int y = 0; y < factionData.ThreatReports.Count && targetPlanet == null; y++ )
+                        {
+                            ThreatReport report = factionData.ThreatReports[y];
+                            if ( report.Planet != centerpiece.Planet
+                             && report.Planet.GetControllingFaction() == playerFaction
+                             && report.Planet.GetHopsTo( centerpiece.Planet ) == 1 )
+                            {
+                                targetPlanet = report.Planet;
+                                // If its our Grand Station's planet, rush there.
+                                if ( World_AIW2.Instance.GetEntityByID_Squad( factionData.GrandStation ) != null
+                                 && World_AIW2.Instance.GetEntityByID_Squad( factionData.GrandStation ).Planet == targetPlanet )
+                                {
+                                    highPriority = true;
+                                }
+                                break;
+                            }
+                        }
+                        centerpiece.FleetMembership.Fleet.DoForEntities( delegate ( GameEntity_Squad entity )
+                        {
+                            // If its not urgent, and we have hostile forces on our current planet, finish our fight first.
+                            if ( factionData.GetThreat( entity.Planet ).Actual > factionData.GetCap() * 100 && !highPriority )
+                                return DelReturn.Continue;
+                            // If we're not on our target yet, path to it.
+                            if ( entity.Planet != targetPlanet )
+                            {
+                                // If we're not on the target planet, return to our centerpiece's planet first, to make sure we don't path through hostile territory.
+                                if ( entity.Planet != centerpiece.Planet )
+                                {
+                                    // Get a path for the ship to take, and give them the command.
+                                    List<Planet> path = faction.FindPath( entity.Planet, centerpiece.Planet, Context );
+
+                                    // Create and add all required parts of a wormhole move command.
+                                    GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath], GameCommandSource.AnythingElse );
+                                    command.RelatedEntityIDs.Add( entity.PrimaryKeyID );
+                                    for ( int y = 0; y < path.Count; y++ )
+                                        command.RelatedIntegers.Add( path[y].PlanetIndex );
+                                    Context.QueueCommandForSendingAtEndOfContext( command );
+                                }
+                                else
+                                {
+                                    // Get a path for the ship to take, and give them the command.
+                                    List<Planet> path = faction.FindPath( entity.Planet, targetPlanet, Context );
+
+                                    // Create and add all required parts of a wormhole move command.
+                                    GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath], GameCommandSource.AnythingElse );
+                                    command.RelatedEntityIDs.Add( entity.PrimaryKeyID );
+                                    for ( int y = 0; y < path.Count; y++ )
+                                        command.RelatedIntegers.Add( path[y].PlanetIndex );
+                                    Context.QueueCommandForSendingAtEndOfContext( command );
+                                }
+                            }
+
+                            return DelReturn.Continue;
+                        } );
+                    }
+                }
+            }
+            #endregion
+            // If we have no raidStrength, stop here.
+            if ( raidStrength.Count == 0 )
+                return;
+
+            #region Offensive Actions
+            // Figure out the potential strength we would have to attack each planet.
+            List<AttackAssessment> attackAssessments = new List<AttackAssessment>();
+            foreach ( KeyValuePair<Planet, int> raidingPlanet in raidStrength )
+            {
+                raidingPlanet.Key.DoForLinkedNeighbors( delegate ( Planet adjPlanet )
+                 {
+                     // If friendly, skip.
+                     if ( raidingPlanet.Key.GetControllingFaction().GetIsFriendlyTowards( adjPlanet.GetControllingFaction() ) )
+                         return DelReturn.Continue;
+
+                     // If we don't yet have an assessment for the planet, and  if it either has:
+                     // Enough threat (based on the current AIP).
+                     // Friendly forces and above 0 threat
+                     // Add it
+                     AttackAssessment adjAssessment = (from o in attackAssessments where o.Target == adjPlanet select o).FirstOrDefault();
+                     if ( adjAssessment == null )
+                         if ( factionData.GetThreat( adjPlanet ).Hostile >= factionData.GetCap() * 100
+                           || factionData.GetThreat(adjPlanet).Friendly > 0 && factionData.GetThreat(adjPlanet).Hostile > 0)
+                         {
+                             adjAssessment = new AttackAssessment( adjPlanet, (int)(factionData.GetThreat( adjPlanet ).Actual * 1.5) );
+                             attackAssessments.Add( adjAssessment );
+                         }
+                         else
+                         {
+                             return DelReturn.Continue;
+                         }
+
+                     // Add our current fleet strength to the attack budget.
+                     adjAssessment.Attackers.Add( raidingPlanet.Key, raidingPlanet.Value );
+
+                     return DelReturn.Continue;
+                 } );
+            }
+
+            // Make sure our best target is first.
+            attackAssessments.Sort();
+
+            // Keep poising to attack as long as the target we're aiming for is weak to us.
+            while ( attackAssessments.Count > 0 && attackAssessments[0].AttackPower > attackAssessments[0].StrengthRequired )
+            {
+                // Stop the attack if too many ships aren't ready, unless we're already attacking.
+                int notReady = 0, ready = 0;
+                bool alreadyAttacking = false;
+                for ( int x = 0; x < factionData.MilitiaLeaders.Count; x++ )
+                {
+                    // Skip checks if we're already attacking.
+                    if ( alreadyAttacking )
+                        break;
+
+                    GameEntity_Squad centerpiece = World_AIW2.Instance.GetEntityByID_Squad( factionData.MilitiaLeaders[x] );
+                    if ( centerpiece == null || centerpiece.GetCivilianMilitiaExt().Status != CivilianMilitiaStatus.Patrolling || !attackAssessments[0].Attackers.Keys.Contains( centerpiece.Planet ) )
+                        continue;
+
+                    centerpiece.FleetMembership.Fleet.DoForEntities( delegate ( GameEntity_Squad entity )
+                     {
+                         // Skip centerpiece.
+                         if ( centerpiece == entity )
+                             return DelReturn.Continue;
+
+                         // Already attacking, stop checking and start raiding.
+                         if ( entity.Planet == attackAssessments[0].Target )
+                         {
+                             alreadyAttacking = true;
+                             return DelReturn.Break;
+                         }
+
+                         // Get them moving if needed.
+                         if ( entity.Planet != centerpiece.Planet )
+                         {
+                             notReady++;
+                             // Get a path for the ship to take, and give them the command.
+                             List<Planet> path = faction.FindPath( entity.Planet, centerpiece.Planet, Context );
+
+                             // Create and add all required parts of a wormhole move command.
+                             GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath], GameCommandSource.AnythingElse );
+                             command.RelatedEntityIDs.Add( entity.PrimaryKeyID );
+                             for ( int y = 0; y < path.Count; y++ )
+                                 command.RelatedIntegers.Add( path[y].PlanetIndex );
+                             Context.QueueCommandForSendingAtEndOfContext( command );
+                         }
+                         else if ( centerpiece.Planet.GetWormholeTo( attackAssessments[0].Target ).WorldLocation.GetExtremelyRoughDistanceTo( entity.WorldLocation ) > 5000 )
+                         {
+                             notReady++;
+                             // Create and add all required parts of a move to point command.
+                             GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.MoveManyToOnePoint], GameCommandSource.AnythingElse );
+                             command.RelatedEntityIDs.Add( entity.PrimaryKeyID );
+                             command.RelatedPoints.Add( centerpiece.Planet.GetWormholeTo( attackAssessments[0].Target ).WorldLocation );
+                             Context.QueueCommandForSendingAtEndOfContext( command );
+                         }
+                         else
+                             ready++;
+
+                         return DelReturn.Continue;
+                     } );
+                }
+
+                // If 33% all of our ships are ready, or we're already raiding, its raiding time.
+                if ( ready > notReady * 2 || alreadyAttacking )
+                {
+                    for ( int x = 0; x < factionData.MilitiaLeaders.Count; x++ )
+                    {
+                        GameEntity_Squad centerpiece = World_AIW2.Instance.GetEntityByID_Squad( factionData.MilitiaLeaders[x] );
+                        if ( centerpiece == null || centerpiece.GetCivilianMilitiaExt().Status != CivilianMilitiaStatus.Patrolling || !attackAssessments[0].Attackers.Keys.Contains( centerpiece.Planet ) )
+                            continue;
+
+                        centerpiece.FleetMembership.Fleet.DoForEntities( delegate ( GameEntity_Squad entity )
+                        {
+                            if ( entity.Planet != attackAssessments[0].Target )
+                            {
+                                // Get a path for the ship to take, and give them the command.
+                                List<Planet> path = faction.FindPath( entity.Planet, attackAssessments[0].Target, Context );
+
+                                // Create and add all required parts of a wormhole move command.
+                                GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath], GameCommandSource.AnythingElse );
+                                command.RelatedEntityIDs.Add( entity.PrimaryKeyID );
+                                for ( int y = 0; y < path.Count; y++ )
+                                    command.RelatedIntegers.Add( path[y].PlanetIndex );
+                                Context.QueueCommandForSendingAtEndOfContext( command );
+                            }
+                            return DelReturn.Continue;
+                        } );
+                    }
+                }
+
+                // If any of the planets involved in this attack are in other attacks, remove them from those other attacks.
+                for ( int y = 1; y < attackAssessments.Count; y++ )
+                {
+                    foreach ( Planet planet in attackAssessments[0].Attackers.Keys )
+                        if ( attackAssessments[y].Attackers.ContainsKey( planet ) )
+                            attackAssessments[y].Attackers.Remove( planet );
+                }
+                attackAssessments.RemoveAt( 0 );
+                attackAssessments.Sort();
+            }
+            #endregion
+        }
+
         // Called once every X seconds, as defined at the start of our faction class.
         // Do NOT directly change anything from this function. Doing so may cause desyncs in multiplayer.
         // What you can do from here is queue up game commands for units, and send them to be done via QueueCommandForSendingAtEndOfContext.
@@ -2295,7 +2571,8 @@ namespace Arcen.AIW2.SK
                 if ( factionData == null )
                     continue;
                 DoCargoShipMovement( faction, playerFaction, factionData, Context );
-                DoMilitiaShipMovement( faction, playerFaction, factionData, Context );
+                DoMilitiaCapitalShipMovement( faction, playerFaction, factionData, Context );
+                DoMilitiaThreatReaction( faction, playerFaction, factionData, Context );
             }
         }
 
@@ -2338,7 +2615,23 @@ namespace Arcen.AIW2.SK
                 factionData.CargoShips.Remove( entity.PrimaryKeyID );
 
             if ( factionData.MilitiaLeaders.Contains( entity.PrimaryKeyID ) )
+            {
+                // Try to scrap all of its units.
+                try
+                {
+                    entity.FleetMembership.Fleet.DoForEntities( delegate ( GameEntity_Squad squad )
+                    {
+                        if ( entity != squad )
+                            squad.Despawn( Context, true, InstancedRendererDeactivationReason.SelfDestructOnTooHighOfCap );
+                        return DelReturn.Continue;
+                    } );
+                }
+                catch ( Exception )
+                {
+                    ArcenDebugging.SingleLineQuickDebug( "CivilianIndustries - Failed to find dead Militia fleet. Rogue units may be lieing around." );
+                }
                 factionData.MilitiaLeaders.Remove( entity.PrimaryKeyID );
+            }
 
             if ( factionData.ResourcePoints.Contains( entity.PrimaryKeyID ) )
                 factionData.ResourcePoints.Remove( entity.PrimaryKeyID );
