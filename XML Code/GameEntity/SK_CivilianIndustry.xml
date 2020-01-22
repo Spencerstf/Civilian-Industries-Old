@@ -28,7 +28,7 @@
 			ship_or_structure_explosion_sfx_happens_if_not_mine_and_on_other_planet="true"
 			voice_group="Silent"
             priority_as_frd_target="MajorPlanetLevelObjective"
-            priority_as_ai_target="NotDangerous"
+            priority_as_ai_target="MajorPlanetLevelObjective"
             priority_to_protect="MajorPlanetLevelObjective"
             exp_to_grant_on_death="-1"
             description_appender_dll="SKCivilianIndustry"
@@ -56,15 +56,15 @@
             behavior="Stationary"
             starting_mark_level="Markless"
             cost_for_ai_to_purchase="90000"
-            hull_points="75000" shield_points="10000" speed="Immobile"
+            hull_points="150000" shield_points="25000" speed="Immobile"
             armor_mm="250" albedo="0.8" mass_tx="4"
             metal_cost="10000" energy_consumption="5000"
             ship_or_structure_explosion_sfx="ShipLostMassive_Explosion"
 			ship_or_structure_explosion_if_on_other_planet_sfx="ShipLargeLostOnOtherPlanet_Explosion"
 			ship_or_structure_explosion_sfx_happens_if_not_mine_and_on_other_planet="true"
 			voice_group="Silent"
-            priority_as_frd_target="NotDangerous"
-            priority_as_ai_target="NotDangerous"
+            priority_as_frd_target="MajorPlanetLevelObjective"
+            priority_as_ai_target="MajorPlanetLevelObjective"
             priority_to_protect="IgnoreMe"
             exp_to_grant_on_death="-1"
             description_appender_dll="SKCivilianIndustry"
@@ -78,7 +78,7 @@
             description="A civilian trade ship. It is tasked with moving resources throughout your planets."
             tags="CivilianIndustryEntity,CargoShip,ShowsOnNormalDisplayMode"
 			visuals="assets/_finalgamemeshes/humanoddities/colonyship/colonyship.prefab"
-			icon_name="Official/ColonyShip" icon_overlay="Official/Starship_Assault"
+			icon_name="Official/ColonyShip"
             gimbal_icon_size_multiplier="1.25"
             size_scale="1.5"
             visuals_scale_multiplier="1"
@@ -95,9 +95,9 @@
             strength_multiplier="0"
 			ship_or_structure_explosion_if_on_other_planet_sfx="ShipLargeLostOnOtherPlanet_Explosion"
 			ship_or_structure_explosion_sfx_happens_if_not_mine_and_on_other_planet="true"
-            priority_as_ai_target="MajorPlanetLevelObjective"
-            priority_as_frd_target="MajorPlanetLevelObjective"
-            priority_to_protect="MajorPlanetLevelObjective"
+            priority_as_ai_target="MinorResourceGeneration"
+            priority_as_frd_target="MinorResourceGeneration"
+            priority_to_protect="IgnoreMe"
             exp_to_grant_on_death="-1"
             description_appender_dll="SKCivilianIndustry"
             description_appender_type="Arcen.AIW2.SK.CargoShipDescriptionAppender"
@@ -113,25 +113,32 @@
             description="The centerpiece of a Miltia Fleet, it is carrying materials required to construct a defensive building."
             description_appender_dll="SKCivilianIndustry"
             description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender"
+			tech_upgrades_that_benefit_me="Unused"
             >
     </entity>
     <!--    Miltia outpost.
             Built to fortify planets from hostile wormholes.
     -->
     <entity name="MilitiaOutpost" display_name="Militia Outpost" skip_export="true" copy_from="AIFortress" tags="MilitiaShip,MilitiaOutpost,CivilianIndustryEntity"
-            hull_points="100000" shield_points="500000"
+            hull_points="500000" shield_points="1250000"
             damage_multiplier_to_all_weapons="0.33"
+			strength_multiplier="0.33"
             description="The centerpiece of a Militia Fleet. This has been built in response to ai threat on adjacent planets. Requests resources to build stationary defenses."
             description_appender_dll="SKCivilianIndustry"
-            description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender">
+            description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender"
+			tech_upgrades_that_benefit_me="Unused">
+			
     </entity>
     <!--    Militia Patrol Post
             Built around mines on planets that still feel threatened after outpost placement.
             Builds mobile fleets.
     -->
     <entity name="MilitiaPatrolPost" display_name="Militia Patrol Post" skip_export="true" copy_from="StealthGuardPost" tags="MilitiaShip,MilitiaPatrolPost,CivilianIndustryEntity"
-            description="The centerpiece of a Militia Fleet. This has been built in response to ai threat on adjacent planets. Requests resources to build mobile forces."
+            hull_points="250000" shield_points="750000"
+			strength_multiplier="0.33"
+			description="The centerpiece of a Militia Fleet. This has been built in response to ai threat on adjacent planets. Requests resources to build mobile forces."
             description_appender_dll="SKCivilianIndustry"
-            description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender">
+            description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender"
+			tech_upgrades_that_benefit_me="Unused">
     </entity>
 </root>
