@@ -291,12 +291,13 @@ namespace Arcen.AIW2.SK
         // Returns the current capacity for turrets/ships.
         public int GetCap()
         {
-            // ((10 + (AIP / 10)) ^ (1 + (Intensity/50)))
+            // ((baseCap + (AIP / AIPDivisor)) ^ (1 + (Intensity / IntensityDivisor)))
             int cap = 0;
-            int AIPDivisor = 10;
-            int IntensityDivisor = 50;
+            int baseCap = 20;
+            int AIPDivisor = 2;
+            int IntensityDivisor = 25;
             for ( int y = 0; y < World_AIW2.Instance.AIFactions.Count; y++ )
-                cap = (int)(Math.Ceiling( Math.Pow( Math.Max( cap, 10 + World_AIW2.Instance.AIFactions[y].GetAICommonExternalData().AIProgress_Total.ToInt() / AIPDivisor ),
+                cap = (int)(Math.Ceiling( Math.Pow( Math.Max( cap, baseCap + World_AIW2.Instance.AIFactions[y].GetAICommonExternalData().AIProgress_Total.ToInt() / AIPDivisor ),
                      1 + (World_AIW2.Instance.GetEntityByID_Squad( GrandStation ).PlanetFaction.Faction.Ex_MinorFactionCommon_GetPrimitives().Intensity / IntensityDivisor) ) ));
             return cap;
         }
@@ -631,7 +632,7 @@ namespace Arcen.AIW2.SK
             for ( int x = 0; x < this.ProcessedResources.Length; x++ )
             {
                 this.ProcessedResources[x] = 0;
-                this.MaximumCapacity[x] = 2500;
+                this.MaximumCapacity[x] = 100;
                 this.TypeData[x] = -1;
             }
         }
@@ -981,6 +982,13 @@ namespace Arcen.AIW2.SK
                  tradeCargo.PerSecond[Context.RandomToUse.Next( (int)CivilianResource.Length )] = (int)(mines * 1.5);
 
                  tradeStation.SetCivilianCargoExt( tradeCargo );
+
+                 // Add buildings to the planet's sbuild list.
+                 entityData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "MilitiaBarracks" );
+                 Fleet.Membership mem = commandStation.FleetMembership.Fleet.GetOrAddMembershipGroupBasedOnSquadType_AssumeNoDuplicates( entityData );
+
+                 // Set the building caps.
+                 mem.ExplicitBaseSquadCap = 3;
 
                  return DelReturn.Continue;
              } );
@@ -1436,6 +1444,17 @@ namespace Arcen.AIW2.SK
                      if ( wormhole == null )
                          return DelReturn.Continue;
 
+                     // Skip if too close to the planet's command station.
+                     bool isClose = false;
+                     factionData.ThreatReports[x].Planet.DoForEntities( EntityRollupType.CommandStation, delegate ( GameEntity_Squad command )
+                      {
+                          if ( wormhole.WorldLocation.GetDistanceTo( command.WorldLocation, true ) <= 6000 )
+                              isClose = true;
+                          return DelReturn.Continue;
+                      } );
+                     if ( isClose )
+                         return DelReturn.Continue;
+
                      // If its not been claimed by another militia, claim it.
                      if ( (from o in factionData.MilitiaLeaders where World_AIW2.Instance.GetEntityByID_Squad( o ).GetCivilianMilitiaExt().EntityFocus == wormhole.PrimaryKeyID select o).Count() == 0 )
                      {
@@ -1578,9 +1597,9 @@ namespace Arcen.AIW2.SK
                 {
                     int stationDist = militiaShip.GetDistanceTo_ExpensiveAccurate( goalStation.WorldLocation, true, true );
                     int wormDist = militiaShip.GetDistanceTo_ExpensiveAccurate( militiaStatus.getWormhole().WorldLocation, true, true );
-                    int range = 8000;
-                    if ( stationDist > range * 0.2 &&
-                        (stationDist > range * 0.6 || wormDist < range) )
+                    int range = 10000;
+                    if ( stationDist > range * 0.3 &&
+                        (stationDist > range || wormDist < range) )
                     {
                         // Prepare its old id to be removed.
                         toRemove.Add( militiaShip.PrimaryKeyID );
@@ -1664,19 +1683,29 @@ namespace Arcen.AIW2.SK
                         GameEntityTypeData turretData = GameEntityTypeDataTable.Instance.Rows[militiaStatus.TypeData[y]];
 
                         Fleet.Membership mem = militiaShip.FleetMembership.Fleet.GetOrAddMembershipGroupBasedOnSquadType_AssumeNoDuplicates( turretData );
-                        try
-                        {
-                            mem.ExplicitBaseSquadCap = (factionData.GetCap() / (FInt.Create( mem.TypeData.GetForMark( mem.TypeData.MarkFor( mem ) ).StrengthPerSquad, false ) / 1000)).GetNearestIntPreferringHigher();
-                        }
-                        catch ( Exception )
-                        {
-                            mem.ExplicitBaseSquadCap = 1;
-                        }
-                        int count = mem.GetRemainingCap( true, -1, ExtraFromStacks.IncludePrecalc );
+                        mem.ExplicitBaseSquadCap = (factionData.GetCap() / (FInt.Create( mem.TypeData.GetForMark( mem.TypeData.MarkFor( mem ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
+                        militiaShip.Planet.DoForLinkedNeighborsAndSelf( delegate ( Planet otherPlanet )
+                         {
+                             otherPlanet.DoForEntities( EntityRollupType.SpecialTypes, delegate ( GameEntity_Squad building )
+                             {
+                                 if ( building.TypeData.SpecialType == SpecialEntityType.NPCFactionCenterpiece && building.TypeData.GetHasTag( "MilitiaBarracks" )
+                                 && building.SelfBuildingMetalRemaining <= 0 && building.SecondsSpentAsRemains <= 0 )
+                                     if ( mem.TypeData.MultiplierToAllFleetCaps == 0 )
+                                         mem.ExplicitBaseSquadCap += Math.Max( 1, (FInt.Create( mem.ExplicitBaseSquadCap, true ) / 3).GetNearestIntPreferringHigher() );
+                                     else
+                                         mem.ExplicitBaseSquadCap += Math.Max( (1 / mem.TypeData.MultiplierToAllFleetCaps).GetNearestIntPreferringHigher(), (FInt.Create( mem.ExplicitBaseSquadCap, true ) / 3).GetNearestIntPreferringHigher() );
+                                 return DelReturn.Continue;
+                             } );
+                             return DelReturn.Continue;
+                         } );
+                        int count = mem.GetRemainingCap( true, -1, ExtraFromStacks.Recalculate );
                         if ( count > 0 )
                         {
                             FInt countCostModifier = 1 + (FInt.Create( count + 1, false ) / mem.ExplicitBaseSquadCap);
                             int cost = turretData.CostForAIToPurchase * countCostModifier.ToInt();
+
+                            if ( militiaStatus.MaximumCapacity[y] < cost )
+                                militiaStatus.MaximumCapacity[y] = cost + 1;
 
                             if ( militiaStatus.ProcessedResources[y] >= cost )
                             {
@@ -1734,19 +1763,29 @@ namespace Arcen.AIW2.SK
                         GameEntityTypeData shipData = GameEntityTypeDataTable.Instance.Rows[militiaStatus.TypeData[y]];
 
                         Fleet.Membership mem = militiaShip.FleetMembership.Fleet.GetOrAddMembershipGroupBasedOnSquadType_AssumeNoDuplicates( shipData );
-                        try
+                        mem.ExplicitBaseSquadCap = (factionData.GetCap() / (FInt.Create( mem.TypeData.GetForMark( mem.TypeData.MarkFor( mem ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
+                        militiaShip.Planet.DoForLinkedNeighborsAndSelf( delegate ( Planet otherPlanet )
                         {
-                            mem.ExplicitBaseSquadCap = (factionData.GetCap() / (FInt.Create( mem.TypeData.GetForMark( mem.TypeData.MarkFor( mem ) ).StrengthPerSquad, false ) / 1000)).GetNearestIntPreferringHigher();
-                        }
-                        catch ( Exception )
-                        {
-                            mem.ExplicitBaseSquadCap = 1;
-                        }
-                        int count = mem.GetRemainingCap( true, -1, ExtraFromStacks.IncludePrecalc );
+                            otherPlanet.DoForEntities( EntityRollupType.SpecialTypes, delegate ( GameEntity_Squad building )
+                            {
+                                if ( building.TypeData.SpecialType == SpecialEntityType.NPCFactionCenterpiece && building.TypeData.GetHasTag( "MilitiaBarracks" )
+                                && building.SelfBuildingMetalRemaining <= 0 && building.SecondsSpentAsRemains <= 0 )
+                                    if ( mem.TypeData.MultiplierToAllFleetCaps == 0 )
+                                        mem.ExplicitBaseSquadCap += Math.Max( 1, (FInt.Create(mem.ExplicitBaseSquadCap, true) / 3).GetNearestIntPreferringHigher() );
+                                    else
+                                        mem.ExplicitBaseSquadCap += Math.Max( (1 / mem.TypeData.MultiplierToAllFleetCaps).GetNearestIntPreferringHigher(), (FInt.Create( mem.ExplicitBaseSquadCap, true ) / 3).GetNearestIntPreferringHigher() );
+                                return DelReturn.Continue;
+                            } );
+                            return DelReturn.Continue;
+                        } );
+                        int count = mem.GetRemainingCap( true, -1, ExtraFromStacks.Recalculate );
                         if ( count > 0 )
                         {
                             FInt countCostModifier = 1 + (FInt.Create( count + 1, false ) / mem.ExplicitBaseSquadCap);
                             int cost = shipData.CostForAIToPurchase * countCostModifier.ToInt();
+
+                            if ( militiaStatus.MaximumCapacity[y] < cost )
+                                militiaStatus.MaximumCapacity[y] = cost + 1;
 
                             if ( militiaStatus.ProcessedResources[y] >= cost )
                             {
@@ -1766,8 +1805,6 @@ namespace Arcen.AIW2.SK
 
                                 // Add the turret to our militia's fleet.
                                 militiaShip.FleetMembership.Fleet.AddSquadToMembership_AssumeNoDuplicates( entity );
-
-                                // 
                             }
                         }
                         if ( count < 0 && mem.Entities.Count > 0 )
@@ -1938,6 +1975,19 @@ namespace Arcen.AIW2.SK
                 }
                 if ( militia.GetCivilianMilitiaExt().Status != CivilianMilitiaStatus.Defending && militia.GetCivilianMilitiaExt().Status != CivilianMilitiaStatus.Patrolling )
                     continue;
+
+                // Skip if we're full on all resources.
+                CivilianMilitia militiaData = militia.GetCivilianMilitiaExt();
+                bool isFull = true;
+                for ( int y = 0; y < militiaData.ProcessedResources.Length; y++ )
+                    if ( militiaData.ProcessedResources[y] < militiaData.MaximumCapacity[y] )
+                    {
+                        isFull = false;
+                        break;
+                    }
+                if ( isFull )
+                    continue;
+
                 // See if we already have cargo ships enroute.
                 int cargoEnroute = 0;
                 for ( int y = 0; y < factionData.CargoShips.Count; y++ )
@@ -2622,7 +2672,7 @@ namespace Arcen.AIW2.SK
             while ( attackAssessments.Count > 0 )
             {
                 AttackAssessment assessment = attackAssessments[0];
-
+                
                 // See if there are already any player units on the planet.
                 // If there are, we should be heading there as soon as possible.
                 bool alreadyAttacking = false;
@@ -2635,9 +2685,8 @@ namespace Arcen.AIW2.SK
                     else
                         continue;
                 }
-
                 // If not strong enough, remove.
-                if ( assessment.AttackPower < assessment.StrengthRequired ||
+                if ( assessment.AttackPower < assessment.StrengthRequired &&
                     (alreadyAttacking && assessment.AttackPower + threat.FriendlyMobile < assessment.StrengthRequired) )
                 {
                     attackAssessments.RemoveAt( 0 );

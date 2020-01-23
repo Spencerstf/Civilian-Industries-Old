@@ -14,7 +14,7 @@
       It has no gameplay, seeding, or other structural significance and doesn't
       affect how the game plays.-->
 
-  <build_category name="TrainExtensions" sort_index="98" display_name="Train Extensions"
-      description="Additional modifier buildings for your train lines."
+  <build_category name="MilitiaBuildings" sort_index="98" display_name="Militia Buildings"
+      description="Buildings that bolster your militia units in one way or another."
   />
 </root>

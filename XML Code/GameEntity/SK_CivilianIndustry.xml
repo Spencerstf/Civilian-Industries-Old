@@ -1,41 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root>
-    <!--
+  <!--
             File contains stations and ships for the PlayerTrains faction.
      -->
-     <!--   The main station of our faction.
+  <!--   The main station of our faction.
             Auto builds on player homeworlds.
             Builds Goods and Ships.
      -->
-    <entity name="GrandStation" display_name="Grand Station"
-            description="The hub of our civilian trade. If this is destroyed, our civilian economy will crumble."
-            tags="CivilianIndustryEntity,GrandStation,CargoShipProducer,ShowsOnNormalDisplayMode"
-            visuals="assets/_finalgamemeshes/humanbuildings/spacedock/spacedock.prefab"
-            gimbal_name="AstroTrainStation"
-			icon_name="Official/AstroTrainStation" gimbal_icon_size_multiplier="1.5"
-            category="Ship"
-            visuals_scale_multiplier="12" size_scale="12" y_offset_of_icon="30"
-            collision_priority="810"
-            target_type_for_player="NeverAutotargetButAllowManualTarget"
-            behavior="Stationary"
-            starting_mark_level="Markless"
-            cost_for_ai_to_purchase="90000"
-            hull_points="5000000" shield_points="100000" speed="Immobile"
-            armor_mm="250" albedo="0.8" mass_tx="4"
-            metal_cost="50000" energy_consumption="10000"
-            ship_or_structure_explosion_sfx="ShipLostMassive_Explosion"
-			ship_or_structure_explosion_if_on_other_planet_sfx="ShipLargeLostOnOtherPlanet_Explosion"
-			ship_or_structure_explosion_sfx_happens_if_not_mine_and_on_other_planet="true"
-			voice_group="Silent"
-            priority_as_frd_target="MajorPlanetLevelObjective"
-            priority_as_ai_target="MajorPlanetLevelObjective"
-            priority_to_protect="MajorPlanetLevelObjective"
-            exp_to_grant_on_death="-1"
-            description_appender_dll="SKCivilianIndustry"
-            description_appender_type="Arcen.AIW2.SK.GrandStationDescriptionAppender"
+  <entity name="GrandStation" display_name="Grand Station"
+          description="The hub of our civilian trade. If this is destroyed, our civilian economy will crumble."
+          tags="CivilianIndustryEntity,GrandStation,CargoShipProducer,ShowsOnNormalDisplayMode"
+          visuals="assets/_finalgamemeshes/humanbuildings/spacedock/spacedock.prefab"
+          gimbal_name="AstroTrainStation"
+    icon_name="Official/AstroTrainStation" gimbal_icon_size_multiplier="1.5"
+          category="Ship"
+          visuals_scale_multiplier="12" size_scale="12" y_offset_of_icon="30"
+          collision_priority="810"
+          target_type_for_player="NeverAutotargetButAllowManualTarget"
+          behavior="Stationary"
+          starting_mark_level="Markless"
+          cost_for_ai_to_purchase="90000"
+          hull_points="5000000" shield_points="100000" speed="Immobile"
+          armor_mm="250" albedo="0.8" mass_tx="4"
+          metal_cost="50000" energy_consumption="10000"
+          ship_or_structure_explosion_sfx="ShipLostMassive_Explosion"
+    ship_or_structure_explosion_if_on_other_planet_sfx="ShipLargeLostOnOtherPlanet_Explosion"
+    ship_or_structure_explosion_sfx_happens_if_not_mine_and_on_other_planet="true"
+    voice_group="Silent"
+          priority_as_frd_target="MajorPlanetLevelObjective"
+          priority_as_ai_target="MajorPlanetLevelObjective"
+          priority_to_protect="MajorPlanetLevelObjective"
+          exp_to_grant_on_death="-1"
+          description_appender_dll="SKCivilianIndustry"
+          description_appender_type="Arcen.AIW2.SK.GrandStationDescriptionAppender"
         >
-    </entity>
-    <!--    Trade stations.
+  </entity>
+  <!--    Trade stations.
             Auto builds on non homeworld planets.
             Receives Goods from Grand Station to function.
             Collects Ore from mines on the planet and converts it into Metal.
@@ -43,102 +43,115 @@
 
             Resources are always inported or exported through this station.
     -->
-    <entity name="TradeStation" display_name="Trade Station"
-            description="The center of trade for this planet."
-            tags="CivilianIndustryEntity,TradeStation,MetalProducer,ShowsOnNormalDisplayMode"
-            visuals="assets/_finalgamemeshes/humanbuildings/spacedock/spacedock.prefab"
-            gimbal_name="AstroTrainStation"
-			icon_name="Official/AstroTrainStation" gimbal_icon_size_multiplier="1.5"
-            category="Ship"
-            visuals_scale_multiplier="7.5" size_scale="7.5" y_offset_of_icon="30"
-            collision_priority="810"
-            target_type_for_player="NeverAutotargetButAllowManualTarget"
-            behavior="Stationary"
-            starting_mark_level="Markless"
-            cost_for_ai_to_purchase="90000"
-            hull_points="150000" shield_points="25000" speed="Immobile"
-            armor_mm="250" albedo="0.8" mass_tx="4"
-            metal_cost="10000" energy_consumption="5000"
-            ship_or_structure_explosion_sfx="ShipLostMassive_Explosion"
-			ship_or_structure_explosion_if_on_other_planet_sfx="ShipLargeLostOnOtherPlanet_Explosion"
-			ship_or_structure_explosion_sfx_happens_if_not_mine_and_on_other_planet="true"
-			voice_group="Silent"
-            priority_as_frd_target="MajorPlanetLevelObjective"
-            priority_as_ai_target="MajorPlanetLevelObjective"
-            priority_to_protect="IgnoreMe"
-            exp_to_grant_on_death="-1"
-            description_appender_dll="SKCivilianIndustry"
-            description_appender_type="Arcen.AIW2.SK.TradeStationDescriptionAppender"
+  <entity name="TradeStation" display_name="Trade Station"
+          description="The center of trade for this planet."
+          tags="CivilianIndustryEntity,TradeStation,MetalProducer,ShowsOnNormalDisplayMode"
+          visuals="assets/_finalgamemeshes/humanbuildings/spacedock/spacedock.prefab"
+          gimbal_name="AstroTrainStation"
+    icon_name="Official/AstroTrainStation" gimbal_icon_size_multiplier="1.5"
+          category="Ship"
+          visuals_scale_multiplier="7.5" size_scale="7.5" y_offset_of_icon="30"
+          collision_priority="810"
+          target_type_for_player="NeverAutotargetButAllowManualTarget"
+          behavior="Stationary"
+          starting_mark_level="Markless"
+          cost_for_ai_to_purchase="90000"
+          hull_points="150000" shield_points="25000" speed="Immobile"
+          armor_mm="250" albedo="0.8" mass_tx="4"
+          metal_cost="10000" energy_consumption="5000"
+          ship_or_structure_explosion_sfx="ShipLostMassive_Explosion"
+    ship_or_structure_explosion_if_on_other_planet_sfx="ShipLargeLostOnOtherPlanet_Explosion"
+    ship_or_structure_explosion_sfx_happens_if_not_mine_and_on_other_planet="true"
+    voice_group="Silent"
+          priority_as_frd_target="MajorPlanetLevelObjective"
+          priority_as_ai_target="MajorPlanetLevelObjective"
+          priority_to_protect="IgnoreMe"
+          exp_to_grant_on_death="-1"
+          description_appender_dll="SKCivilianIndustry"
+          description_appender_type="Arcen.AIW2.SK.TradeStationDescriptionAppender"
         >
-    </entity>
-    <!--    Cargo ship.
+  </entity>
+  <!--    Cargo ship.
             Used to transfer resources between trade stations and the grand station.
     -->
-    <entity name="CargoShip" display_name="Cargo Ship" cannot_be_stacked="true"
-            description="A civilian trade ship. It is tasked with moving resources throughout your planets."
-            tags="CivilianIndustryEntity,CargoShip,ShowsOnNormalDisplayMode"
-			visuals="assets/_finalgamemeshes/humanoddities/colonyship/colonyship.prefab"
-			icon_name="Official/ColonyShip"
-            gimbal_icon_size_multiplier="1.25"
-            size_scale="1.5"
-            visuals_scale_multiplier="1"
-            category="Ship"
-            y_offset_of_icon="10"
-            collision_priority="900"
-            starting_mark_level="Markless"
-            cost_for_ai_to_purchase="90000"
-            hull_points="50000" shield_points="0" speed="Normal1"
-            metal_cost="5000" energy_consumption="0"
-            armor_mm="300" engine_gx="22" albedo="0.8" mass_tx="33"
-            voice_group="Starship"
-            ship_or_structure_explosion_sfx="ShipStarship_Explosion"
-            strength_multiplier="0"
-			ship_or_structure_explosion_if_on_other_planet_sfx="ShipLargeLostOnOtherPlanet_Explosion"
-			ship_or_structure_explosion_sfx_happens_if_not_mine_and_on_other_planet="true"
-            priority_as_ai_target="MinorResourceGeneration"
-            priority_as_frd_target="MinorResourceGeneration"
-            priority_to_protect="IgnoreMe"
-            exp_to_grant_on_death="-1"
-            description_appender_dll="SKCivilianIndustry"
-            description_appender_type="Arcen.AIW2.SK.CargoShipDescriptionAppender"
+  <entity name="CargoShip" display_name="Cargo Ship" cannot_be_stacked="true"
+          description="A civilian trade ship. It is tasked with moving resources throughout your planets."
+          tags="CivilianIndustryEntity,CargoShip,ShowsOnNormalDisplayMode"
+    visuals="assets/_finalgamemeshes/humanoddities/colonyship/colonyship.prefab"
+    icon_name="Official/ColonyShip"
+          gimbal_icon_size_multiplier="0.75"
+          size_scale="1"
+          visuals_scale_multiplier="1"
+          category="Ship"
+          y_offset_of_icon="10"
+          collision_priority="900"
+          starting_mark_level="Markless"
+          cost_for_ai_to_purchase="90000"
+          hull_points="50000" shield_points="0" speed="Normal1"
+          metal_cost="5000" energy_consumption="0"
+          armor_mm="300" engine_gx="22" albedo="0.8" mass_tx="33"
+          voice_group="Starship"
+          ship_or_structure_explosion_sfx="ShipStarship_Explosion"
+          strength_multiplier="0"
+    ship_or_structure_explosion_if_on_other_planet_sfx="ShipLargeLostOnOtherPlanet_Explosion"
+    ship_or_structure_explosion_sfx_happens_if_not_mine_and_on_other_planet="true"
+          priority_as_ai_target="MinorResourceGeneration"
+          priority_as_frd_target="MinorResourceGeneration"
+          priority_to_protect="IgnoreMe"
+          exp_to_grant_on_death="-1"
+          description_appender_dll="SKCivilianIndustry"
+          description_appender_type="Arcen.AIW2.SK.CargoShipDescriptionAppender"
         >
-    </entity>
-    <!--    Militia Capital Ship.
+  </entity>
+  <!--    Militia Capital Ship.
             Spawnt in response to hostlie threat.
             Will patrol around space.
             Can deploy into a Militia Outpost.
     -->
-    <entity name="MilitiaCapitalShip" display_name="Militia Capital Ship" skip_export="true" copy_from="AssaultFrigate" tags="MilitiaShip,MilitiaCapitalShip,CivilianIndustryEntity"
-            hull_points="500000" shield_points="100000" speed="BelowAverage1"
-            description="The centerpiece of a Miltia Fleet, it is carrying materials required to construct a defensive building."
-            description_appender_dll="SKCivilianIndustry"
-            description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender"
-			tech_upgrades_that_benefit_me="Unused"
+  <entity name="MilitiaCapitalShip" display_name="Militia Capital Ship" skip_export="true" copy_from="AssaultFrigate" tags="MilitiaShip,MilitiaCapitalShip,CivilianIndustryEntity"
+          hull_points="500000" shield_points="100000" speed="BelowAverage1" cannot_be_stacked="true"
+          description="The centerpiece of a Miltia Fleet, it is carrying materials required to construct a defensive building."
+          description_appender_dll="SKCivilianIndustry"
+          description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender"
+    tech_upgrades_that_benefit_me="Unused"
             >
-    </entity>
-    <!--    Miltia outpost.
+  </entity>
+  <!--    Miltia outpost.
             Built to fortify planets from hostile wormholes.
     -->
-    <entity name="MilitiaOutpost" display_name="Militia Outpost" skip_export="true" copy_from="AIFortress" tags="MilitiaShip,MilitiaOutpost,CivilianIndustryEntity"
-            hull_points="500000" shield_points="1250000"
-            damage_multiplier_to_all_weapons="0.33"
-			strength_multiplier="0.33"
-            description="The centerpiece of a Militia Fleet. This has been built in response to ai threat on adjacent planets. Requests resources to build stationary defenses."
-            description_appender_dll="SKCivilianIndustry"
-            description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender"
-			tech_upgrades_that_benefit_me="Unused">
-			
-    </entity>
-    <!--    Militia Patrol Post
+  <entity name="MilitiaOutpost" display_name="Militia Outpost" skip_export="true" copy_from="AIFortress" tags="MilitiaShip,MilitiaOutpost,CivilianIndustryEntity"
+          hull_points="500000" shield_points="1250000"
+          damage_multiplier_to_all_weapons="0.33"
+    strength_multiplier="0.33"
+          description="The centerpiece of a Militia Fleet. This has been built in response to ai threat on adjacent planets. Requests resources to build stationary defenses."
+          description_appender_dll="SKCivilianIndustry"
+          description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender"
+    tech_upgrades_that_benefit_me="Unused">
+
+  </entity>
+  <!--    Militia Patrol Post
             Built around mines on planets that still feel threatened after outpost placement.
             Builds mobile fleets.
     -->
-    <entity name="MilitiaPatrolPost" display_name="Militia Patrol Post" skip_export="true" copy_from="StealthGuardPost" tags="MilitiaShip,MilitiaPatrolPost,CivilianIndustryEntity"
-            hull_points="250000" shield_points="750000"
-			strength_multiplier="0.33"
-			description="The centerpiece of a Militia Fleet. This has been built in response to ai threat on adjacent planets. Requests resources to build mobile forces."
-            description_appender_dll="SKCivilianIndustry"
-            description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender"
-			tech_upgrades_that_benefit_me="Unused">
-    </entity>
+  <entity name="MilitiaPatrolPost" display_name="Militia Patrol Post" skip_export="true" copy_from="StealthGuardPost" tags="MilitiaShip,MilitiaPatrolPost,CivilianIndustryEntity"
+          hull_points="250000" shield_points="750000"
+    strength_multiplier="0.33"
+    description="The centerpiece of a Militia Fleet. This has been built in response to ai threat on adjacent planets. Requests resources to build mobile forces."
+          description_appender_dll="SKCivilianIndustry"
+          description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender"
+    tech_upgrades_that_benefit_me="Unused">
+  </entity>
+  <!--    Militia Barracks
+            Manually placed by the player.
+            Up to 3 per planet, boosts the capacity of all turret/ship building militia buildings on the planet by 33%
+    -->
+  <entity name="MilitiaBarracks" display_name="Militia Barracks" skip_export="true" copy_from="TradeStation" tags="MilitiaShip,MilitiaBarracks,CivilianIndustryEntity"
+          special_entity_type="NPCFactionCenterpiece"
+          visuals="assets/_finalgamemeshes/humanbuildings/spacedock/spacedock.prefab"
+          build_sidebar_categories_i_am_part_of="MilitiaBuildings"
+          description="A focal point for local defensive forces for the planet. Boosts Turret and Ship capacity for Militia buildings on the planet by 33% or a flat 1, whichever is greater."
+          metal_cost="5000000" energy_consumption="100000"
+          >
+    <metal_flow purpose="SelfConstruction" throughput="2500"/>
+  </entity>
 </root>
