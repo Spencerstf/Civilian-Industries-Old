@@ -1888,7 +1888,7 @@ namespace Arcen.AIW2.SK
                          } );
                         if ( tradeStations.Count > 0 )
                         {
-                            ExoGalacticAttackManager.SendExoGalacticAttack( tradeStations, wave.CalculateStrengthOfWave( aiFaction ) * (tradeStations.Count + mainPlanet.GetLinkedNeighborCount()), null, aiFaction, aiFaction, Context, ExoGalacticAttackType.Normal, 2 );
+                            ExoGalacticAttackManager.SendExoGalacticAttack( tradeStations, wave.CalculateStrengthOfWave( aiFaction ) * tradeStations.Count, null, aiFaction, aiFaction, Context, ExoGalacticAttackType.Normal, 2 );
                             World_AIW2.Instance.QueueLogMessageCommand( "The AI is launching raids on trade stations near " + mainPlanet.Name + ".", JournalEntryImportance.Normal );
                         }
                     }
