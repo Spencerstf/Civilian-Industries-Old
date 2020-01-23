@@ -282,14 +282,14 @@ namespace Arcen.AIW2.SK
         }
 
         // Returns the resource cost per cargo/militia capital ship.
-        public int GetResourceCost()
+        public int GetResourceCost(Faction faction)
         {
             // 51 - (Intensity ^ 1.5)
-            return 51 - (int)Math.Pow( World_AIW2.Instance.GetEntityByID_Squad( GrandStation ).PlanetFaction.Faction.Ex_MinorFactionCommon_GetPrimitives().Intensity, 1.5 );
+            return 51 - (int)Math.Pow( faction.Ex_MinorFactionCommon_GetPrimitives().Intensity, 1.5 );
         }
 
         // Returns the current capacity for turrets/ships.
-        public int GetCap()
+        public int GetCap( Faction faction )
         {
             // ((baseCap + (AIP / AIPDivisor)) ^ (1 + (Intensity / IntensityDivisor)))
             int cap = 0;
@@ -298,7 +298,7 @@ namespace Arcen.AIW2.SK
             int IntensityDivisor = 25;
             for ( int y = 0; y < World_AIW2.Instance.AIFactions.Count; y++ )
                 cap = (int)(Math.Ceiling( Math.Pow( Math.Max( cap, baseCap + World_AIW2.Instance.AIFactions[y].GetAICommonExternalData().AIProgress_Total.ToInt() / AIPDivisor ),
-                     1 + (World_AIW2.Instance.GetEntityByID_Squad( GrandStation ).PlanetFaction.Faction.Ex_MinorFactionCommon_GetPrimitives().Intensity / IntensityDivisor) ) ));
+                     1 + (faction.Ex_MinorFactionCommon_GetPrimitives().Intensity / IntensityDivisor) ) ));
             return cap;
         }
 
@@ -707,8 +707,8 @@ namespace Arcen.AIW2.SK
             // If we found our faction data, inform them about build requests in the faction.
             if ( factionData != null )
             {
-                Buffer.Add( "\n" + factionData.BuildCounter + "/" + (factionData.CargoShips.Count * factionData.GetResourceCost()) + " Request points until next Cargo Ship built." );
-                Buffer.Add( "\n" + factionData.MilitiaCounter + "/" + (factionData.MilitiaLeaders.Count * factionData.GetResourceCost()) + " Request points until next Miltia ship built." );
+                Buffer.Add( "\n" + factionData.BuildCounter + "/" + (factionData.CargoShips.Count * factionData.GetResourceCost(RelatedEntityOrNull.PlanetFaction.Faction)) + " Request points until next Cargo Ship built." );
+                Buffer.Add( "\n" + factionData.MilitiaCounter + "/" + (factionData.MilitiaLeaders.Count * factionData.GetResourceCost(RelatedEntityOrNull.PlanetFaction.Faction)) + " Request points until next Miltia ship built." );
             }
 
             // Add in an empty line to stop any other gunk (such as the fleet display) from messing up our given information.
@@ -1039,7 +1039,7 @@ namespace Arcen.AIW2.SK
             GameEntity_Squad grandStation = World_AIW2.Instance.GetEntityByID_Squad( factionData.GrandStation );
 
             // Build a cargo ship if we have enough requests for them.
-            if ( factionData.CargoShips.Count < 10 || factionData.BuildCounter > factionData.CargoShips.Count * factionData.GetResourceCost() )
+            if ( factionData.CargoShips.Count < 10 || factionData.BuildCounter > factionData.CargoShips.Count * factionData.GetResourceCost(faction) )
             {
                 // Load our cargo ship's data.
                 GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "CargoShip" );
@@ -1063,7 +1063,7 @@ namespace Arcen.AIW2.SK
             }
 
             // Build mitia ship if we have enough requets for them.
-            if ( factionData.MilitiaLeaders.Count < 1 || factionData.MilitiaCounter > factionData.MilitiaLeaders.Count * factionData.GetResourceCost() )
+            if ( factionData.MilitiaLeaders.Count < 1 || factionData.MilitiaCounter > factionData.MilitiaLeaders.Count * factionData.GetResourceCost(faction) )
             {
                 // Load our militia ship's data.
                 GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "MilitiaCapitalShip" );
@@ -1695,7 +1695,7 @@ namespace Arcen.AIW2.SK
                         GameEntityTypeData turretData = GameEntityTypeDataTable.Instance.Rows[militiaStatus.TypeData[y]];
 
                         Fleet.Membership mem = militiaShip.FleetMembership.Fleet.GetOrAddMembershipGroupBasedOnSquadType_AssumeNoDuplicates( turretData );
-                        mem.ExplicitBaseSquadCap = (factionData.GetCap() / (FInt.Create( mem.TypeData.GetForMark( mem.TypeData.MarkFor( mem ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
+                        mem.ExplicitBaseSquadCap = (factionData.GetCap(faction) / (FInt.Create( mem.TypeData.GetForMark( mem.TypeData.MarkFor( mem ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
                         militiaShip.Planet.DoForLinkedNeighborsAndSelf( delegate ( Planet otherPlanet )
                          {
                              otherPlanet.DoForEntities( EntityRollupType.SpecialTypes, delegate ( GameEntity_Squad building )
@@ -1786,7 +1786,7 @@ namespace Arcen.AIW2.SK
                         GameEntityTypeData shipData = GameEntityTypeDataTable.Instance.Rows[militiaStatus.TypeData[y]];
 
                         Fleet.Membership mem = militiaShip.FleetMembership.Fleet.GetOrAddMembershipGroupBasedOnSquadType_AssumeNoDuplicates( shipData );
-                        mem.ExplicitBaseSquadCap = (factionData.GetCap() / (FInt.Create( mem.TypeData.GetForMark( mem.TypeData.MarkFor( mem ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
+                        mem.ExplicitBaseSquadCap = (factionData.GetCap(faction) / (FInt.Create( mem.TypeData.GetForMark( mem.TypeData.MarkFor( mem ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
                         militiaShip.Planet.DoForLinkedNeighborsAndSelf( delegate ( Planet otherPlanet )
                         {
                             otherPlanet.DoForEntities( EntityRollupType.SpecialTypes, delegate ( GameEntity_Squad building )
@@ -1937,6 +1937,9 @@ namespace Arcen.AIW2.SK
                     continue;
 
                 // If not currently active, create the faction's starting station.
+                if ( World_AIW2.Instance.GetEntityByID_Squad( factionData.GrandStation ) == null )
+                    factionData.GrandStation = -1;
+
                 while ( factionData.GrandStation == -1 )
                     CreateGrandStation( faction, playerFaction, factionData, Context );
 
