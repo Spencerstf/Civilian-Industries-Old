@@ -169,7 +169,7 @@ namespace Arcen.AIW2.SK
                     return (0, 0, 0, 0, 0, 0);
                 else
                     for ( int x = 0; x < ThreatReports.Count; x++ )
-                        if ( ThreatReports[x].Planet.PlanetIndex == planet.PlanetIndex )
+                        if ( ThreatReports[x].Planet.Index == planet.Index )
                             return ThreatReports[x].GetThreat();
                 // Planet not processed. Return 0.
                 return (0, 0, 0, 0, 0, 0);
@@ -215,7 +215,7 @@ namespace Arcen.AIW2.SK
                         {
                             PlannedWave wave = QueuedWaves[k];
 
-                            if ( wave.targetPlanetIdx != planet.PlanetIndex )
+                            if ( wave.targetPlanetIdx != planet.Index )
                                 continue;
 
                             if ( wave.gameTimeInSecondsForLaunchWave - World_AIW2.Instance.GameSecond <= 90 )
@@ -255,7 +255,7 @@ namespace Arcen.AIW2.SK
                         } );
 
                     // If on home plant, double the total threat.
-                    if ( planet.PlanetIndex == grandPlanet.PlanetIndex )
+                    if ( planet.Index == grandPlanet.Index )
                         hostileStrength *= 2;
 
                     // Get friendly strength on the planet.
@@ -935,7 +935,7 @@ namespace Arcen.AIW2.SK
                      GameEntity_Squad station = World_AIW2.Instance.GetEntityByID_Squad( factionData.TradeStations[x] );
                      if ( station == null )
                          continue;
-                     if ( station.Planet.PlanetIndex == planet.PlanetIndex )
+                     if ( station.Planet.Index == planet.Index )
                          return DelReturn.Continue;
                  }
 
@@ -1115,7 +1115,7 @@ namespace Arcen.AIW2.SK
                 }
 
                 // If ship not at destination planet yet, do nothing.
-                if ( cargoShip.Planet.PlanetIndex != destinationStation.Planet.PlanetIndex )
+                if ( cargoShip.Planet.Index != destinationStation.Planet.Index )
                     continue;
 
                 // If ship is close to destination station, start unloading.
@@ -1162,7 +1162,7 @@ namespace Arcen.AIW2.SK
                 }
 
                 // If ship not at origin planet yet, do nothing.
-                if ( cargoShip.Planet.PlanetIndex != originStation.Planet.PlanetIndex )
+                if ( cargoShip.Planet.Index != originStation.Planet.Index )
                     continue;
 
                 // If ship is close to origin station, start loading.
@@ -1507,7 +1507,7 @@ namespace Arcen.AIW2.SK
 
                 // Update the militia's status.
                 CivilianMilitia militiaStatus = militia.GetCivilianMilitiaExt();
-                militiaStatus.PlanetFocus = factionData.ThreatReports[x].Planet.PlanetIndex;
+                militiaStatus.PlanetFocus = factionData.ThreatReports[x].Planet.Index;
 
                 // Assign our mine or wormhole.
                 if ( foundWormhole != null )
@@ -1553,7 +1553,7 @@ namespace Arcen.AIW2.SK
                     continue;
                 }
                 // Skip if not at planet yet.
-                if ( militiaShip.Planet.PlanetIndex != militiaStatus.PlanetFocus )
+                if ( militiaShip.Planet.Index != militiaStatus.PlanetFocus )
                     continue;
                 // Get its goal's station.
                 planet.DoForEntities( delegate ( GameEntity_Squad entity )
@@ -1669,16 +1669,28 @@ namespace Arcen.AIW2.SK
                             tech = TechUpgradeTable.Instance.GetRowByName( "Turret", false, null );
                         if ( militiaStatus.TypeData[y] == -1 )
                         {
-                            // Get type data for this resource type.
-                            List<GameEntityTypeData> tempTypes = new List<GameEntityTypeData>();
-                            for ( int z = 0; z < tech.ShipTypesThatThisBenefits.Count; z++ )
+                            // Make sure we don't already have a type with this tech in our fleet.
+                            for ( int z = 0; z < militiaShip.FleetMembership.Fleet.MemberGroups.Count; z++ )
+                                if ( militiaShip.FleetMembership.Fleet.MemberGroups[z].TypeData.TechUpgradesThatBenefitMe.Contains( tech ) )
+                                {
+                                    militiaStatus.TypeData[y] = militiaShip.FleetMembership.Fleet.MemberGroups[z].TypeData.RowIndex;
+                                    break;
+                                }
+                            if ( militiaStatus.TypeData[y] == -1 )
                             {
-                                GameEntityTypeData tempData = tech.ShipTypesThatThisBenefits[z];
-                                if ( tempData.IsTurret && tempData.StartingMarkLevel.Ordinal <= 1 && tempData.CostForAIToPurchase > 0 )
-                                    tempTypes.Add( tempData );
+                                // Get type data for this resource type.
+                                List<GameEntityTypeData> tempTypes = new List<GameEntityTypeData>();
+                                for ( int z = 0; z < tech.ShipTypesThatThisBenefits.Count; z++ )
+                                {
+                                    GameEntityTypeData tempData = tech.ShipTypesThatThisBenefits[z];
+                                    if ( tempData.IsTurret && tempData.StartingMarkLevel.Ordinal <= 1 && tempData.CostForAIToPurchase > 0 && !tempData.HasAnyWeaponDeathEffects )
+                                    {
+                                            tempTypes.Add( tempData );
+                                    }
+                                }
+                                if ( tempTypes.Count > 0 )
+                                    militiaStatus.TypeData[y] = tempTypes[Context.RandomToUse.Next( tempTypes.Count )].RowIndex;
                             }
-                            if ( tempTypes.Count > 0 )
-                                militiaStatus.TypeData[y] = tempTypes[Context.RandomToUse.Next( tempTypes.Count )].RowIndex;
                         }
                         GameEntityTypeData turretData = GameEntityTypeDataTable.Instance.Rows[militiaStatus.TypeData[y]];
 
@@ -1748,17 +1760,28 @@ namespace Arcen.AIW2.SK
                         TechUpgrade tech = TechUpgradeTable.Instance.GetRowByName( ((CivilianTech)y).ToString(), false, null );
                         if ( militiaStatus.TypeData[y] == -1 )
                         {
-                            // Get type data for this resource type.
-                            List<GameEntityTypeData> tempTypes = new List<GameEntityTypeData>();
-                            for ( int z = 0; z < tech.ShipTypesThatThisBenefits.Count; z++ )
+                            // Make sure we don't already have a type with this tech in our fleet.
+                            for ( int z = 0; z < militiaShip.FleetMembership.Fleet.MemberGroups.Count; z++ )
+                                if ( militiaShip.FleetMembership.Fleet.MemberGroups[z].TypeData.TechUpgradesThatBenefitMe.Contains( tech ) )
+                                {
+                                    militiaStatus.TypeData[y] = militiaShip.FleetMembership.Fleet.MemberGroups[z].TypeData.RowIndex;
+                                }
+                            if ( militiaStatus.TypeData[y] == -1 )
                             {
-                                GameEntityTypeData tempData = tech.ShipTypesThatThisBenefits[z];
-                                if ( (tempData.IsStrikecraft || tempData.SpecialType == SpecialEntityType.Frigate) && tempData.StartingMarkLevel.Ordinal <= 1 && tempData.FleetMembershipStyle != FleetMembershipStyle.Planetary
-                                    && !tempData.IsDrone && !tempData.AlwaysSelfAttritions && tempData.CostForAIToPurchase > 0 )
-                                    tempTypes.Add( tempData );
+                                // Get type data for this resource type.
+                                List<GameEntityTypeData> tempTypes = new List<GameEntityTypeData>();
+                                for ( int z = 0; z < tech.ShipTypesThatThisBenefits.Count; z++ )
+                                {
+                                    GameEntityTypeData tempData = tech.ShipTypesThatThisBenefits[z];
+                                    if ( (tempData.IsStrikecraft || tempData.SpecialType == SpecialEntityType.Frigate) && tempData.StartingMarkLevel.Ordinal <= 1 && tempData.FleetMembershipStyle != FleetMembershipStyle.Planetary
+                                        && !tempData.IsDrone && !tempData.AlwaysSelfAttritions && tempData.CostForAIToPurchase > 0 && !tempData.HasAnyWeaponDeathEffects )
+                                    {
+                                        tempTypes.Add( tempData );
+                                    }
+                                }
+                                if ( tempTypes.Count > 0 )
+                                    militiaStatus.TypeData[y] = tempTypes[Context.RandomToUse.Next( tempTypes.Count )].RowIndex;
                             }
-                            if ( tempTypes.Count > 0 )
-                                militiaStatus.TypeData[y] = tempTypes[Context.RandomToUse.Next( tempTypes.Count )].RowIndex;
                         }
                         GameEntityTypeData shipData = GameEntityTypeDataTable.Instance.Rows[militiaStatus.TypeData[y]];
 
@@ -1771,7 +1794,7 @@ namespace Arcen.AIW2.SK
                                 if ( building.TypeData.SpecialType == SpecialEntityType.NPCFactionCenterpiece && building.TypeData.GetHasTag( "MilitiaBarracks" )
                                 && building.SelfBuildingMetalRemaining <= 0 && building.SecondsSpentAsRemains <= 0 )
                                     if ( mem.TypeData.MultiplierToAllFleetCaps == 0 )
-                                        mem.ExplicitBaseSquadCap += Math.Max( 1, (FInt.Create(mem.ExplicitBaseSquadCap, true) / 3).GetNearestIntPreferringHigher() );
+                                        mem.ExplicitBaseSquadCap += Math.Max( 1, (FInt.Create( mem.ExplicitBaseSquadCap, true ) / 3).GetNearestIntPreferringHigher() );
                                     else
                                         mem.ExplicitBaseSquadCap += Math.Max( (1 / mem.TypeData.MultiplierToAllFleetCaps).GetNearestIntPreferringHigher(), (FInt.Create( mem.ExplicitBaseSquadCap, true ) / 3).GetNearestIntPreferringHigher() );
                                 return DelReturn.Continue;
@@ -1865,7 +1888,7 @@ namespace Arcen.AIW2.SK
                          } );
                         if ( tradeStations.Count > 0 )
                         {
-                            ExoGalacticAttackManager.SendExoGalacticAttack( tradeStations, wave.CalculateStrengthOfWave( aiFaction ) * (tradeStations.Count + mainPlanet.GetLinkedNeighborCount()), null, aiFaction, Context, ExoGalacticAttackType.Normal, 2 );
+                            ExoGalacticAttackManager.SendExoGalacticAttack( tradeStations, wave.CalculateStrengthOfWave( aiFaction ) * (tradeStations.Count + mainPlanet.GetLinkedNeighborCount()), null, aiFaction, aiFaction, Context, ExoGalacticAttackType.Normal, 2 );
                             World_AIW2.Instance.QueueLogMessageCommand( "The AI is launching raids on trade stations near " + mainPlanet.Name + ".", JournalEntryImportance.Normal );
                         }
                     }
@@ -2304,7 +2327,7 @@ namespace Arcen.AIW2.SK
                     Planet originPlanet = originStation.Planet;
 
                     // Check if already on planet.
-                    if ( ship.Planet.PlanetIndex == originPlanet.PlanetIndex )
+                    if ( ship.Planet.Index == originPlanet.Index )
                     {
                         // On planet. Begin pathing towards the station.
                         // Tell the game what kind of command we want to do.
@@ -2326,15 +2349,15 @@ namespace Arcen.AIW2.SK
                         // Not on planet yet, prepare wormhole navigation.
                         // Tell the game wehat kind of command we want to do.
                         // Here we'll be using the self descriptive SetWormholePath command.
-                        GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath], GameCommandSource.AnythingElse );
+                        GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath_NPCSingleUnit], GameCommandSource.AnythingElse );
 
                         // For wormhole pathing, we'll need to get our path from here to our goal.
                         FactionCommonExternalData factionExternal = faction.GetCommonExternal();
                         PlanetPathfinder pathfinder = factionExternal.ConservativePathfinder_LongTerm;
-                        List<Planet> path = pathfinder.FindPath( ship.Planet, originPlanet, 0, 0, false );
+                        List<Planet> path = pathfinder.FindPath( ship.Planet, originPlanet, 0, 0, Context );
 
                         // Set the goal to the next planet in our path.
-                        command.RelatedIntegers.Add( path[1].PlanetIndex );
+                        command.RelatedIntegers.Add( path[1].Index );
 
                         // Have the command apply to our ship.
                         command.RelatedEntityIDs.Add( ship.PrimaryKeyID );
@@ -2353,7 +2376,7 @@ namespace Arcen.AIW2.SK
                     Planet destinationPlanet = destinationStation.Planet;
 
                     // Check if already on planet.
-                    if ( ship.Planet.PlanetIndex == destinationPlanet.PlanetIndex )
+                    if ( ship.Planet.Index == destinationPlanet.Index )
                     {
                         // On planet. Begin pathing towards the station.
                         // Tell the game what kind of command we want to do.
@@ -2375,15 +2398,15 @@ namespace Arcen.AIW2.SK
                         // Not on planet yet, prepare wormhole navigation.
                         // Tell the game wehat kind of command we want to do.
                         // Here we'll be using the self descriptive SetWormholePath command.
-                        GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath], GameCommandSource.AnythingElse );
+                        GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath_NPCSingleUnit], GameCommandSource.AnythingElse );
 
                         // For wormhole pathing, we'll need to get our path from here to our goal.
                         FactionCommonExternalData factionExternal = faction.GetCommonExternal();
                         PlanetPathfinder pathfinder = factionExternal.ConservativePathfinder_LongTerm;
-                        List<Planet> path = pathfinder.FindPath( ship.Planet, destinationPlanet, 0, 0, false );
+                        List<Planet> path = pathfinder.FindPath( ship.Planet, destinationPlanet, 0, 0, Context );
 
                         // Set the goal to the next planet in our path.
-                        command.RelatedIntegers.Add( path[1].PlanetIndex );
+                        command.RelatedIntegers.Add( path[1].Index );
 
                         // Have the command apply to our ship.
                         command.RelatedEntityIDs.Add( ship.PrimaryKeyID );
@@ -2416,7 +2439,7 @@ namespace Arcen.AIW2.SK
                 if ( shipStatus.Status == CivilianMilitiaStatus.PathingForMine || shipStatus.Status == CivilianMilitiaStatus.PathingForWormhole )
                 {
                     // Check if already on planet.
-                    if ( ship.Planet.PlanetIndex == shipStatus.PlanetFocus )
+                    if ( ship.Planet.Index == shipStatus.PlanetFocus )
                     {
                         // On planet. Begin pathing towards the station.
                         GameEntity_Squad goalStation = null;
@@ -2456,15 +2479,15 @@ namespace Arcen.AIW2.SK
                         // Not on planet yet, prepare wormhole navigation.
                         // Tell the game wehat kind of command we want to do.
                         // Here we'll be using the self descriptive SetWormholePath command.
-                        GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath], GameCommandSource.AnythingElse );
+                        GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath_NPCSingleUnit], GameCommandSource.AnythingElse );
 
                         // For wormhole pathing, we'll need to get our path from here to our goal.
                         FactionCommonExternalData factionExternal = faction.GetCommonExternal();
                         PlanetPathfinder pathfinder = factionExternal.ConservativePathfinder_LongTerm;
-                        List<Planet> path = pathfinder.FindPath( ship.Planet, planet, 0, 0, false );
+                        List<Planet> path = pathfinder.FindPath( ship.Planet, planet, 0, 0, Context );
 
                         // Set the goal to the next planet in our path.
-                        command.RelatedIntegers.Add( path[1].PlanetIndex );
+                        command.RelatedIntegers.Add( path[1].Index );
 
                         // Have the command apply to our ship.
                         command.RelatedEntityIDs.Add( ship.PrimaryKeyID );
@@ -2586,10 +2609,10 @@ namespace Arcen.AIW2.SK
                                 List<Planet> path = faction.FindPath( entity.Planet, centerpiece.Planet, Context );
 
                                 // Create and add all required parts of a wormhole move command.
-                                GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath], GameCommandSource.AnythingElse );
+                                GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath_NPCSingleUnit], GameCommandSource.AnythingElse );
                                 command.RelatedEntityIDs.Add( entity.PrimaryKeyID );
                                 for ( int y = 0; y < path.Count; y++ )
-                                    command.RelatedIntegers.Add( path[y].PlanetIndex );
+                                    command.RelatedIntegers.Add( path[y].Index );
                                 Context.QueueCommandForSendingAtEndOfContext( command );
                             }
                             else
@@ -2598,10 +2621,10 @@ namespace Arcen.AIW2.SK
                                 List<Planet> path = faction.FindPath( entity.Planet, targetPlanet, Context );
 
                                 // Create and add all required parts of a wormhole move command.
-                                GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath], GameCommandSource.AnythingElse );
+                                GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath_NPCSingleUnit], GameCommandSource.AnythingElse );
                                 command.RelatedEntityIDs.Add( entity.PrimaryKeyID );
                                 for ( int y = 0; y < path.Count; y++ )
-                                    command.RelatedIntegers.Add( path[y].PlanetIndex );
+                                    command.RelatedIntegers.Add( path[y].Index );
                                 Context.QueueCommandForSendingAtEndOfContext( command );
                             }
                         }
@@ -2672,7 +2695,7 @@ namespace Arcen.AIW2.SK
             while ( attackAssessments.Count > 0 )
             {
                 AttackAssessment assessment = attackAssessments[0];
-                
+
                 // See if there are already any player units on the planet.
                 // If there are, we should be heading there as soon as possible.
                 bool alreadyAttacking = false;
@@ -2686,8 +2709,7 @@ namespace Arcen.AIW2.SK
                         continue;
                 }
                 // If not strong enough, remove.
-                if ( assessment.AttackPower < assessment.StrengthRequired &&
-                    (alreadyAttacking && assessment.AttackPower + threat.FriendlyMobile < assessment.StrengthRequired) )
+                if ( assessment.AttackPower + threat.FriendlyMobile < assessment.StrengthRequired )
                 {
                     attackAssessments.RemoveAt( 0 );
                     continue;
@@ -2727,10 +2749,10 @@ namespace Arcen.AIW2.SK
                              List<Planet> path = faction.FindPath( entity.Planet, centerpiece.Planet, Context );
 
                              // Create and add all required parts of a wormhole move command.
-                             GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath], GameCommandSource.AnythingElse );
+                             GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath_NPCSingleUnit], GameCommandSource.AnythingElse );
                              command.RelatedEntityIDs.Add( entity.PrimaryKeyID );
                              for ( int y = 0; y < path.Count; y++ )
-                                 command.RelatedIntegers.Add( path[y].PlanetIndex );
+                                 command.RelatedIntegers.Add( path[y].Index );
                              Context.QueueCommandForSendingAtEndOfContext( command );
                          }
                          else if ( centerpiece.Planet.GetWormholeTo( assessment.Target ).WorldLocation.GetExtremelyRoughDistanceTo( entity.WorldLocation ) > 5000 )
@@ -2782,10 +2804,10 @@ namespace Arcen.AIW2.SK
                                 List<Planet> path = faction.FindPath( entity.Planet, assessment.Target, Context );
 
                                 // Create and add all required parts of a wormhole move command.
-                                GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath], GameCommandSource.AnythingElse );
+                                GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath_NPCSingleUnit], GameCommandSource.AnythingElse );
                                 command.RelatedEntityIDs.Add( entity.PrimaryKeyID );
                                 for ( int y = 0; y < path.Count; y++ )
-                                    command.RelatedIntegers.Add( path[y].PlanetIndex );
+                                    command.RelatedIntegers.Add( path[y].Index );
                                 Context.QueueCommandForSendingAtEndOfContext( command );
                             }
                             return DelReturn.Continue;
@@ -2826,16 +2848,16 @@ namespace Arcen.AIW2.SK
                          var threat = factionData.GetThreat( squad.Planet );
 
                          // If we're not home, and our current planet does not have threat that we think we can beat, return.
-                         if ( squad.Planet.PlanetIndex != centerpiece.Planet.PlanetIndex && (threat.Hostile == 0 || threat.MilitiaMobile < threat.Hostile * 1.25) )
+                         if ( squad.Planet.Index != centerpiece.Planet.Index && (threat.Hostile == 0 || threat.MilitiaMobile < threat.Hostile * 1.25) )
                          {
                              // Get a path for the ship to take, and give them the command.
                              List<Planet> path = faction.FindPath( squad.Planet, centerpiece.Planet, Context );
 
                              // Create and add all required parts of a wormhole move command.
-                             GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath], GameCommandSource.AnythingElse );
+                             GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath_NPCSingleUnit], GameCommandSource.AnythingElse );
                              command.RelatedEntityIDs.Add( squad.PrimaryKeyID );
                              for ( int y = 0; y < path.Count; y++ )
-                                 command.RelatedIntegers.Add( path[y].PlanetIndex );
+                                 command.RelatedIntegers.Add( path[y].Index );
                              Context.QueueCommandForSendingAtEndOfContext( command );
                          }
                          return DelReturn.Continue;
