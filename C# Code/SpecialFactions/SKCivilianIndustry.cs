@@ -7,6 +7,13 @@ using System.Linq;
 
 namespace Arcen.AIW2.SK
 {
+    public static class ModVersion
+    {
+        public static int MajorVersion = 0;
+        public static int ModerateVersion = 2;
+        public static int MinorVersion = 5;
+    }
+
     // Enum used to keep track of what our cargo and trade ships are doing.
     // Bare basic, used mostly for performance sake, so only ships that need to be processed for something are even considered valid targets.
     public enum CivilianShipStatus
@@ -67,6 +74,11 @@ namespace Arcen.AIW2.SK
     // World storage class. Everything can be found from here.
     public class CivilianWorld
     {
+        // Version of the mod. For save data compatibility.
+        public int ModVersionMajor;
+        public int ModVersionModerate;
+        public int ModVersionMinor;
+
         // Faction indexes with an active civilian industry.
         public List<int> Factions;
 
@@ -99,6 +111,10 @@ namespace Arcen.AIW2.SK
         // Saving our data.
         public void SerializeTo( ArcenSerializationBuffer Buffer )
         {
+            Buffer.AddItem( ModVersion.MajorVersion );
+            Buffer.AddItem( ModVersion.ModerateVersion );
+            Buffer.AddItem( ModVersion.MinorVersion );
+
             // Lists require a special touch to save.
             // Get the number of items in the list, and store that as well.
             // This is so you know how many items you'll have to load later.
@@ -110,6 +126,9 @@ namespace Arcen.AIW2.SK
         // Loading our data. Make sure the loading order is the same as the saving order.
         public CivilianWorld( ArcenDeserializationBuffer Buffer )
         {
+            this.ModVersionMajor = Buffer.ReadInt32();
+            this.ModVersionModerate = Buffer.ReadInt32();
+            this.ModVersionMinor = Buffer.ReadInt32();
             // Lists require a special touch to load.
             // We'll have saved the number of items stored up above to be used here to determine the number of items to load.
             // ADDITIONALLY we'll need to recreate a blank list beforehand, as loading does not call the Initialization function.
@@ -152,6 +171,12 @@ namespace Arcen.AIW2.SK
 
         // Counter used to determine when another militia ship should be built.
         public int MilitiaCounter;
+
+        // How long until the next raid?
+        public int NextRaidInThisSeconds;
+
+        // Index of wormholes for the next raid.
+        public List<int> NextRaidWormholes;
 
         // Unlike every other value, the follow values are not stored and saved. They are simply regenerated whenever needed.
         // Contains the calculated threat value on every planet.
@@ -282,7 +307,7 @@ namespace Arcen.AIW2.SK
         }
 
         // Returns the resource cost per cargo/militia capital ship.
-        public int GetResourceCost(Faction faction)
+        public int GetResourceCost( Faction faction )
         {
             // 51 - (Intensity ^ 1.5)
             return 51 - (int)Math.Pow( faction.Ex_MinorFactionCommon_GetPrimitives().Intensity, 1.5 );
@@ -302,6 +327,25 @@ namespace Arcen.AIW2.SK
             return cap;
         }
 
+        // Return a cargo ship from any lists its in.
+        public void RemoveCargoShip( int cargoShipID )
+        {
+            if ( this.CargoShips.Contains( cargoShipID ) )
+                this.CargoShips.Remove( cargoShipID );
+            if ( this.CargoShipsIdle.Contains( cargoShipID ) )
+                this.CargoShipsIdle.Remove( cargoShipID );
+            if ( this.CargoShipsLoading.Contains( cargoShipID ) )
+                this.CargoShipsLoading.Remove( cargoShipID );
+            if ( this.CargoShipsUnloading.Contains( cargoShipID ) )
+                this.CargoShipsUnloading.Remove( cargoShipID );
+            if ( this.CargoShipsBuilding.Contains( cargoShipID ) )
+                this.CargoShipsBuilding.Remove( cargoShipID );
+            if ( this.CargoShipsPathing.Contains( cargoShipID ) )
+                this.CargoShipsPathing.Remove( cargoShipID );
+            if ( this.CargoShipsEnroute.Contains( cargoShipID ) )
+                this.CargoShipsEnroute.Remove( cargoShipID );
+        }
+
         // Following three functions are used for initializing, saving, and loading data.
         // Initialization function.
         // Default values. Called on creation, NOT on load.
@@ -319,7 +363,11 @@ namespace Arcen.AIW2.SK
             this.MilitiaLeaders = new List<int>();
             this.BuildCounter = 0;
             this.MilitiaCounter = 0;
+            this.NextRaidInThisSeconds = 1800;
+            this.NextRaidWormholes = new List<int>();
+
             this.ThreatReports = new List<ThreatReport>();
+            this.TradeRequests = new List<TradeRequest>();
         }
         // Serialize a list.
         private void SerializeList( List<int> list, ArcenSerializationBuffer Buffer )
@@ -349,6 +397,9 @@ namespace Arcen.AIW2.SK
 
             Buffer.AddItem( this.BuildCounter );
             Buffer.AddItem( this.MilitiaCounter );
+            Buffer.AddItem( this.NextRaidInThisSeconds );
+
+            SerializeList( this.NextRaidWormholes, Buffer );
         }
         // Deserialize a list.
         public List<int> DeserizlizeList( ArcenDeserializationBuffer Buffer )
@@ -366,7 +417,10 @@ namespace Arcen.AIW2.SK
         // Loading our data. Make sure the loading order is the same as the saving order.
         public CivilianFaction( ArcenDeserializationBuffer Buffer )
         {
+            int read = 0;
+
             this.GrandStation = Buffer.ReadInt32();
+            read++;
 
             this.TradeStations = DeserizlizeList( Buffer );
             this.CargoShips = DeserizlizeList( Buffer );
@@ -381,8 +435,13 @@ namespace Arcen.AIW2.SK
             this.BuildCounter = Buffer.ReadInt32();
             this.MilitiaCounter = Buffer.ReadInt32();
 
-            // Recreate an empty list of threat values on load. Will be populated when needed.
+            this.NextRaidInThisSeconds = Buffer.ReadInt32();
+
+            this.NextRaidWormholes = DeserizlizeList( Buffer );
+
+            // Recreate an empty list on load. Will be populated when needed.
             this.ThreatReports = new List<ThreatReport>();
+            this.TradeRequests = new List<TradeRequest>();
         }
     }
 
@@ -707,8 +766,8 @@ namespace Arcen.AIW2.SK
             // If we found our faction data, inform them about build requests in the faction.
             if ( factionData != null )
             {
-                Buffer.Add( "\n" + factionData.BuildCounter + "/" + (factionData.CargoShips.Count * factionData.GetResourceCost(RelatedEntityOrNull.PlanetFaction.Faction)) + " Request points until next Cargo Ship built." );
-                Buffer.Add( "\n" + factionData.MilitiaCounter + "/" + (factionData.MilitiaLeaders.Count * factionData.GetResourceCost(RelatedEntityOrNull.PlanetFaction.Faction)) + " Request points until next Miltia ship built." );
+                Buffer.Add( "\n" + factionData.BuildCounter + "/" + (factionData.CargoShips.Count * factionData.GetResourceCost( RelatedEntityOrNull.PlanetFaction.Faction )) + " Request points until next Cargo Ship built." );
+                Buffer.Add( "\n" + factionData.MilitiaCounter + "/" + (factionData.MilitiaLeaders.Count * factionData.GetResourceCost( RelatedEntityOrNull.PlanetFaction.Faction )) + " Request points until next Miltia ship built." );
             }
 
             // Add in an empty line to stop any other gunk (such as the fleet display) from messing up our given information.
@@ -1039,7 +1098,7 @@ namespace Arcen.AIW2.SK
             GameEntity_Squad grandStation = World_AIW2.Instance.GetEntityByID_Squad( factionData.GrandStation );
 
             // Build a cargo ship if we have enough requests for them.
-            if ( factionData.CargoShips.Count < 10 || factionData.BuildCounter > factionData.CargoShips.Count * factionData.GetResourceCost(faction) )
+            if ( factionData.CargoShips.Count < 10 || factionData.BuildCounter > factionData.CargoShips.Count * factionData.GetResourceCost( faction ) )
             {
                 // Load our cargo ship's data.
                 GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "CargoShip" );
@@ -1063,7 +1122,7 @@ namespace Arcen.AIW2.SK
             }
 
             // Build mitia ship if we have enough requets for them.
-            if ( factionData.MilitiaLeaders.Count < 1 || factionData.MilitiaCounter > factionData.MilitiaLeaders.Count * factionData.GetResourceCost(faction) )
+            if ( factionData.MilitiaLeaders.Count < 1 || factionData.MilitiaCounter > factionData.MilitiaLeaders.Count * factionData.GetResourceCost( faction ) )
             {
                 // Load our militia ship's data.
                 GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "MilitiaCapitalShip" );
@@ -1685,7 +1744,7 @@ namespace Arcen.AIW2.SK
                                     GameEntityTypeData tempData = tech.ShipTypesThatThisBenefits[z];
                                     if ( tempData.IsTurret && tempData.StartingMarkLevel.Ordinal <= 1 && tempData.CostForAIToPurchase > 0 && !tempData.HasAnyWeaponDeathEffects )
                                     {
-                                            tempTypes.Add( tempData );
+                                        tempTypes.Add( tempData );
                                     }
                                 }
                                 if ( tempTypes.Count > 0 )
@@ -1695,7 +1754,7 @@ namespace Arcen.AIW2.SK
                         GameEntityTypeData turretData = GameEntityTypeDataTable.Instance.Rows[militiaStatus.TypeData[y]];
 
                         Fleet.Membership mem = militiaShip.FleetMembership.Fleet.GetOrAddMembershipGroupBasedOnSquadType_AssumeNoDuplicates( turretData );
-                        mem.ExplicitBaseSquadCap = (factionData.GetCap(faction) / (FInt.Create( mem.TypeData.GetForMark( mem.TypeData.MarkFor( mem ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
+                        mem.ExplicitBaseSquadCap = (factionData.GetCap( faction ) / (FInt.Create( mem.TypeData.GetForMark( mem.TypeData.MarkFor( mem ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
                         militiaShip.Planet.DoForLinkedNeighborsAndSelf( delegate ( Planet otherPlanet )
                          {
                              otherPlanet.DoForEntities( EntityRollupType.SpecialTypes, delegate ( GameEntity_Squad building )
@@ -1786,7 +1845,7 @@ namespace Arcen.AIW2.SK
                         GameEntityTypeData shipData = GameEntityTypeDataTable.Instance.Rows[militiaStatus.TypeData[y]];
 
                         Fleet.Membership mem = militiaShip.FleetMembership.Fleet.GetOrAddMembershipGroupBasedOnSquadType_AssumeNoDuplicates( shipData );
-                        mem.ExplicitBaseSquadCap = (factionData.GetCap(faction) / (FInt.Create( mem.TypeData.GetForMark( mem.TypeData.MarkFor( mem ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
+                        mem.ExplicitBaseSquadCap = (factionData.GetCap( faction ) / (FInt.Create( mem.TypeData.GetForMark( mem.TypeData.MarkFor( mem ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
                         militiaShip.Planet.DoForLinkedNeighborsAndSelf( delegate ( Planet otherPlanet )
                         {
                             otherPlanet.DoForEntities( EntityRollupType.SpecialTypes, delegate ( GameEntity_Squad building )
@@ -1849,51 +1908,130 @@ namespace Arcen.AIW2.SK
             Engine_Universal.NewTimingsBeingBuilt.FinishRememberingFrame( FramePartTimings.TimingType.MainSimThreadNormal, "DoMilitiaDeployment" );
         }
 
-        // AI response.
-        public void DoAIResponse( Faction faction, Faction playerFaction, CivilianFaction factionData, ArcenSimContext Context )
+        // AI response warning.
+        public void PrepareAIRaid( Faction faction, Faction playerFaction, CivilianFaction factionData, ArcenSimContext Context )
         {
-            // The AI will 'pile on' additional mini wave scattered throughout primary wave targets as the game goes on, getting stronger as you expand.
-
-            for ( int j = 0; j < World_AIW2.Instance.AIFactions.Count; j++ )
+            // Pick a random trade station.
+            GameEntity_Squad targetStation = World_AIW2.Instance.GetEntityByID_Squad( factionData.TradeStations[Context.RandomToUse.Next( factionData.TradeStations.Count )] );
+            if ( targetStation != null )
             {
-                Faction aiFaction = World_AIW2.Instance.AIFactions[j];
-                List<PlannedWave> QueuedWaves = aiFaction.GetWaveList();
-                for ( int k = 0; k < QueuedWaves.Count; k++ )
-                {
-                    PlannedWave wave = QueuedWaves[k];
+                Faction aifaction = BadgerFactionUtilityMethods.GetRandomAIFaction( Context );
+                if ( aifaction == null )
+                    return;
 
-                    if ( wave.TargetFactionIndex != playerFaction.FactionIndex )
-                        continue;
+                // Set up raiding wormholes.
+                targetStation.Planet.DoForLinkedNeighborsAndSelf( delegate ( Planet planet )
+                 {
+                     // Toss down 2-4 wormholes.
+                     int count = Context.RandomToUse.Next( 2, 5 );
 
-                    // Once there's 30 seconds, send our mini waves.
-                    if ( wave.gameTimeInSecondsForLaunchWave - World_AIW2.Instance.GameSecond == 30 )
-                    {
-                        // Spawn a wave equals to 10% of the main wave towards all adjacent planets 30 seconds before the main wave hits.
-                        Planet mainPlanet = World_AIW2.Instance.GetPlanetByIndex( wave.targetPlanetIdx );
-                        if ( mainPlanet == null )
-                            continue;
-                        List<GameEntity_Squad> tradeStations = new List<GameEntity_Squad>();
-                        mainPlanet.DoForLinkedNeighborsAndSelf( delegate ( Planet adjPlanet )
+                     for ( int x = 0; x < count; x++ )
+                     {
+                         AngleDegrees angle = AngleDegrees.Create( Context.RandomToUse.NextFloat( x * (360 / count), (x + 1) * (360 / count) ) );
+                         if ( angle == null )
+                             continue;
+                         GameEntityTypeData wormholeData = GameEntityTypeDataTable.Instance.GetRowByName( "AIRaidingWormhole", false, null );
+                         if (wormholeData == null )
                          {
-                             for ( int x = 0; x < factionData.TradeStations.Count; x++ )
-                             {
-                                 GameEntity_Squad tempStation = World_AIW2.Instance.GetEntityByID_Squad( factionData.TradeStations[x] );
-                                 if ( tempStation != null && tempStation.Planet == adjPlanet )
-                                 {
-                                     tradeStations.Add( tempStation );
-                                     break;
-                                 }
-                             }
-                             return DelReturn.Continue;
-                         } );
-                        if ( tradeStations.Count > 0 )
+                             ArcenDebugging.ArcenDebugLogSingleLine( "Unable to find wormhole entitydata.", Verbosity.ShowAsError );
+                             continue;
+                         }
+                         ArcenPoint wormholePoint = Engine_AIW2.Instance.CombatCenter.GetPointAtAngleAndDistance( angle,
+                             (ExternalConstants.Instance.DistanceScale_GravwellRadius * FInt.FromParts( 0, 900 )).IntValue );
+                         if ( wormholePoint == ArcenPoint.ZeroZeroPoint )
+                             continue;
+                         GameEntity_Squad newWormhole = GameEntity_Squad.CreateNew( planet.GetPlanetFactionForFaction( aifaction ), wormholeData,
+                             0, planet.GetPlanetFactionForFaction(aifaction).FleetUsedAtPlanet, 0, wormholePoint, Context );
+
+                         factionData.NextRaidWormholes.Add( newWormhole.PrimaryKeyID );
+                     }
+
+                     return DelReturn.Continue;
+                 } );
+
+                World_AIW2.Instance.QueueLogMessageCommand( "The AI is preparing to raid cargo ships on planets near " + targetStation.Planet.Name, JournalEntryImportance.KeepLonger );
+
+                // Start timer.
+                factionData.NextRaidInThisSeconds = 119;
+            }
+        }
+
+        // AI response.
+        public void DoAIRaid( Faction faction, Faction playerFaction, CivilianFaction factionData, ArcenSimContext Context )
+        {
+            if (factionData.NextRaidWormholes.Count == 0 )
+            {
+                PrepareAIRaid( faction, playerFaction, factionData, Context );
+                return;
+            }
+            Faction aiFaction = BadgerFactionUtilityMethods.GetRandomAIFaction( Context );
+
+            // Don't attempt to send multiple fleets after a single target.
+            List<int> attackedTargets = new List<int>();
+
+            // Budget we have to work with is equal to double a normal wave's budget.
+            int raidBudget = SpecialFaction_AI.Instance.GetSpecificBudgetThreshold( aiFaction, AIBudgetType.Wave );
+            // Stop once we're over budget. (Though allow our last wave to exceed it if needed.)
+            while ( raidBudget > 0 )
+            {
+                GameEntity_Base wormholeToSpawnAt = World_AIW2.Instance.GetEntityByID_Squad(
+                    factionData.NextRaidWormholes[Context.RandomToUse.Next( factionData.NextRaidWormholes.Count )] );
+                for ( int x = 0; x < factionData.CargoShips.Count; x++ )
+                {
+                    GameEntity_Squad target = World_AIW2.Instance.GetEntityByID_Squad( factionData.CargoShips[x] );
+                    if ( target != null && target.Planet == wormholeToSpawnAt.Planet && !attackedTargets.Contains(target.PrimaryKeyID) )
+                    {
+                        int thisBudget = 1000;
+                        raidBudget -= thisBudget;
+                        // Spawn random fast ships that the ai is allowed to have.
+                        GameEntityTypeData workingType = AIShipGroupTable.Instance.GetRowByName( "RaidStrikecraftAndFrigates", false, null ).DrawBag.PickRandomItemAndDoNotReplace( Context.RandomToUse );
+                        if ( workingType == null )
+                            continue;
+                        List<GameEntity_Squad> spawntRaidShips = new List<GameEntity_Squad>();
+                        ArcenSparseLookup<GameEntityTypeData, int> raidingShips = new ArcenSparseLookup<GameEntityTypeData, int>();
+                        raidingShips.AddPair( workingType, 0 );
+                        while ( thisBudget > 0 )
                         {
-                            ExoGalacticAttackManager.SendExoGalacticAttack( tradeStations, wave.CalculateStrengthOfWave( aiFaction ) * tradeStations.Count, null, aiFaction, aiFaction, Context, ExoGalacticAttackType.Normal, 2 );
-                            World_AIW2.Instance.QueueLogMessageCommand( "The AI is launching raids on trade stations near " + mainPlanet.Name + ".", JournalEntryImportance.Normal );
+                            raidingShips[workingType]++;
+                            thisBudget -= workingType.CostForAIToPurchase;
                         }
+                        BaseAIFaction.DeployComposition( Context, aiFaction, null, faction.FactionIndex, raidingShips,
+                            ref spawntRaidShips, wormholeToSpawnAt.WorldLocation, wormholeToSpawnAt.Planet );
+
+                        for ( int shipCount = 0; shipCount < spawntRaidShips.Count; shipCount++ )
+                        {
+                            spawntRaidShips[shipCount].ExoGalacticAttackTarget = SquadWrapper.Create( target );
+                            if ( spawntRaidShips[shipCount].ExoGalacticAttackTarget.GetSquad() == null )
+                                throw new Exception( "This is probably too paranoid" );
+
+                            spawntRaidShips[shipCount].ExoGalacticAttackPlanetIdx = target.Planet.Index; //set the planet index so that AI long term planning knows we are in an Exo
+                        }
+
+                        GameCommand speedCommand = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.CreateSpeedGroup_ExoAttack], GameCommandSource.AnythingElse );
+                        for ( int shipCount = 0; shipCount < spawntRaidShips.Count; shipCount++ )
+                            speedCommand.RelatedEntityIDs.Add( spawntRaidShips[shipCount].PrimaryKeyID );
+                        int exoGroupSpeed = 2200;
+                        speedCommand.RelatedBool = true;
+                        speedCommand.RelatedIntegers.Add( exoGroupSpeed );
+                        World_AIW2.Instance.QueueGameCommand( speedCommand, false );
+
+                        attackedTargets.Add( target.PrimaryKeyID );
                     }
                 }
             }
+
+            // Let the player know they're about to lose money.
+            World_AIW2.Instance.QueueLogMessageCommand( "The AI has begun their raid.", JournalEntryImportance.Normal );
+
+            // Reset raid information.
+            factionData.NextRaidInThisSeconds = 1800;
+            for(int x = 0; x < factionData.NextRaidWormholes.Count; x++ )
+            {
+                GameEntity_Squad wormhole = World_AIW2.Instance.GetEntityByID_Squad( factionData.NextRaidWormholes[x] );
+                if ( wormhole != null )
+                    wormhole.Despawn( Context, true, InstancedRendererDeactivationReason.IFinishedMyJob );
+            }
+            factionData.NextRaidWormholes = new List<int>();
         }
 
         // The following function is called once every second. Consider this our 'main' function of sorts, all of our logic is based on this bad boy calling all our pieces every second.
@@ -1967,8 +2105,19 @@ namespace Arcen.AIW2.SK
                 // Handle militia deployment and unit building.
                 DoMilitiaDeployment( faction, playerFaction, factionData, Context );
 
-                // Handle AI response.
-                DoAIResponse( faction, playerFaction, factionData, Context );
+                // Handle AI response. Have some variation on wave timers.
+                if ( factionData.NextRaidInThisSeconds > 120 )
+                    factionData.NextRaidInThisSeconds = Math.Max( 120, factionData.NextRaidInThisSeconds - Context.RandomToUse.Next( 1, 3 ) );
+                else if ( factionData.NextRaidInThisSeconds > 0 )
+                    factionData.NextRaidInThisSeconds -= Context.RandomToUse.Next( 1, 3 );
+
+                // Prepare (and warn the player about) an upcoming raid.
+                if ( factionData.NextRaidInThisSeconds == 120 )
+                    PrepareAIRaid( faction, playerFaction, factionData, Context );
+
+                // Raid!
+                if ( factionData.NextRaidInThisSeconds <= 0 )
+                    DoAIRaid( faction, playerFaction, factionData, Context );
 
                 // Save our faction data.
                 playerFaction.SetCivilianFactionExt( factionData );
@@ -2021,8 +2170,7 @@ namespace Arcen.AIW2.SK
                     GameEntity_Squad cargoShip = World_AIW2.Instance.GetEntityByID_Squad( factionData.CargoShips[y] );
                     if ( cargoShip == null )
                     {
-                        factionData.CargoShips.Remove( factionData.CargoShips[y] );
-                        factionData.CargoShipsEnroute.RemoveAt( y );
+                        factionData.RemoveCargoShip( factionData.CargoShips[y] );
                         y--;
                         continue;
                     }
@@ -2203,13 +2351,12 @@ namespace Arcen.AIW2.SK
                     }
                     // Get a free cargo ship within our hop limit.
                     GameEntity_Squad foundCargoShip = null;
-                    int foundIndex = -1;
                     for ( int y = 0; y < factionData.CargoShipsIdle.Count; y++ )
                     {
                         GameEntity_Squad cargoShip = World_AIW2.Instance.GetEntityByID_Squad( factionData.CargoShipsIdle[y] );
                         if ( cargoShip == null )
                         {
-                            factionData.CargoShipsIdle.RemoveAt( y );
+                            factionData.RemoveCargoShip( factionData.CargoShipsIdle[y] );
                             y--;
                             continue;
                         }
@@ -2217,7 +2364,6 @@ namespace Arcen.AIW2.SK
                         if ( cargoShip.Planet.GetHopsTo( requestingEntity.Planet ) <= numOfHops )
                         {
                             foundCargoShip = cargoShip;
-                            foundIndex = y;
                             break;
                         }
                     }
@@ -2247,24 +2393,17 @@ namespace Arcen.AIW2.SK
                         // Skip if same.
                         if ( x == z )
                             continue;
-
+                        TradeRequest tempRequest = factionData.TradeRequests[z];
                         // If processed, skip.
-                        if ( factionData.TradeRequests[z].Processed )
-                        {
-                            factionData.TradeRequests.RemoveAt( z );
-                            z--;
-
-                            if ( z < x )
-                                x--;
+                        if ( tempRequest.Processed )
                             continue;
-                        }
 
-                        if ( factionData.TradeRequests[z].Requested == tradeRequest.Requested
-                          && factionData.TradeRequests[z].IsExport != tradeRequest.IsExport
-                          && factionData.TradeRequests[z].Station.Planet.GetHopsTo( tradeRequest.Station.Planet ) <= numOfHops )
+                        if ( tempRequest.Requested == tradeRequest.Requested
+                          && tempRequest.IsExport != tradeRequest.IsExport
+                          && tempRequest.Station.Planet.GetHopsTo( tradeRequest.Station.Planet ) <= numOfHops )
                         {
-                            otherStation = factionData.TradeRequests[z].Station;
-                            otherRequest = factionData.TradeRequests[z];
+                            otherStation = tempRequest.Station;
+                            otherRequest = tempRequest;
                             break;
                         }
                     }
@@ -2356,7 +2495,9 @@ namespace Arcen.AIW2.SK
 
                         // For wormhole pathing, we'll need to get our path from here to our goal.
                         FactionCommonExternalData factionExternal = faction.GetCommonExternal();
-                        PlanetPathfinder pathfinder = factionExternal.ConservativePathfinder_LongTerm;
+                        PlanetPathfinder pathfinder, pathfinderMain;
+                        factionExternal.GetPathfindersOfRelevanceFromContext( Context, out pathfinder, out pathfinderMain );
+
                         List<Planet> path = pathfinder.FindPath( ship.Planet, originPlanet, 0, 0, Context );
 
                         // Set the goal to the next planet in our path.
@@ -2405,7 +2546,8 @@ namespace Arcen.AIW2.SK
 
                         // For wormhole pathing, we'll need to get our path from here to our goal.
                         FactionCommonExternalData factionExternal = faction.GetCommonExternal();
-                        PlanetPathfinder pathfinder = factionExternal.ConservativePathfinder_LongTerm;
+                        PlanetPathfinder pathfinder, pathfinderMain;
+                        factionExternal.GetPathfindersOfRelevanceFromContext( Context, out pathfinder, out pathfinderMain );
                         List<Planet> path = pathfinder.FindPath( ship.Planet, destinationPlanet, 0, 0, Context );
 
                         // Set the goal to the next planet in our path.
@@ -2486,7 +2628,8 @@ namespace Arcen.AIW2.SK
 
                         // For wormhole pathing, we'll need to get our path from here to our goal.
                         FactionCommonExternalData factionExternal = faction.GetCommonExternal();
-                        PlanetPathfinder pathfinder = factionExternal.ConservativePathfinder_LongTerm;
+                        PlanetPathfinder pathfinder, pathfinderMain;
+                        factionExternal.GetPathfindersOfRelevanceFromContext( Context, out pathfinder, out pathfinderMain );
                         List<Planet> path = pathfinder.FindPath( ship.Planet, planet, 0, 0, Context );
 
                         // Set the goal to the next planet in our path.
@@ -2935,26 +3078,7 @@ namespace Arcen.AIW2.SK
             if ( factionData.TradeStations.Contains( entity.PrimaryKeyID ) )
                 factionData.TradeStations.Remove( entity.PrimaryKeyID );
 
-            if ( factionData.CargoShips.Contains( entity.PrimaryKeyID ) )
-                factionData.CargoShips.Remove( entity.PrimaryKeyID );
-
-            if ( factionData.CargoShipsIdle.Contains( entity.PrimaryKeyID ) )
-                factionData.CargoShipsIdle.Remove( entity.PrimaryKeyID );
-
-            if ( factionData.CargoShipsBuilding.Contains( entity.PrimaryKeyID ) )
-                factionData.CargoShipsBuilding.Remove( entity.PrimaryKeyID );
-
-            if ( factionData.CargoShipsEnroute.Contains( entity.PrimaryKeyID ) )
-                factionData.CargoShipsEnroute.Remove( entity.PrimaryKeyID );
-
-            if ( factionData.CargoShipsLoading.Contains( entity.PrimaryKeyID ) )
-                factionData.CargoShipsLoading.Remove( entity.PrimaryKeyID );
-
-            if ( factionData.CargoShipsPathing.Contains( entity.PrimaryKeyID ) )
-                factionData.CargoShipsPathing.Remove( entity.PrimaryKeyID );
-
-            if ( factionData.CargoShipsUnloading.Contains( entity.PrimaryKeyID ) )
-                factionData.CargoShipsUnloading.Remove( entity.PrimaryKeyID );
+            factionData.RemoveCargoShip( entity.PrimaryKeyID );
 
             if ( factionData.MilitiaLeaders.Contains( entity.PrimaryKeyID ) )
             {

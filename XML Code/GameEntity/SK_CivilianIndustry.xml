@@ -152,4 +152,38 @@
           >
     <metal_flow purpose="SelfConstruction" throughput="2500"/>
   </entity>
+
+
+
+
+
+
+  <!--  AI Raiding Wormhole
+        Spawnt on planets before raiding; units will spawn from these and attempt to destroy cargo ships.
+  -->
+  <entity name="AIRaidingWormhole"
+          tags="AIRaidingWormhole"
+          icon_name="Official/Wormhole"
+	  visuals="Assets/_FinalGameMeshes/AIBuildings/ExoGalacticWormhole.prefab"
+          display_name="AI Raiding Wormhole"
+          description="The AI is preparing to warp in small waves of raiding ships to cripple trade in the surrounding systems."
+          category="Ship"
+		  size_scale="7.2"
+		  visuals_scale_multiplier="8"
+          gimbal_name_extra_offset_y="12" gimbal_name_text_size="1.2"
+          voice_group="Silent"
+	  starting_mark_level="Markless"
+          target_type_for_player="NeverTarget"
+          skip_drawing_ship_cap="true"
+          cost_for_ai_to_purchase="200"
+	  hull_points="8000" shield_points="40000" speed="Immobile"
+	  metal_cost="0" energy_consumption="100"
+	  armor_mm="70" albedo="0.45" mass_tx="0.3"
+          immune_to_all_damage="true"
+          ship_or_structure_explosion_sfx="StructureMidsize_Explosion"
+          ship_or_structure_explosion_if_on_other_planet_sfx="StructureLostOnOtherPlanet_Explosion"
+          ship_or_structure_explosion_sfx_happens_if_not_mine_and_on_other_planet="true"
+          exp_to_grant_on_death="-1"
+          priority_as_ai_target="BigThreateningWeapon" priority_as_frd_target="NotDangerous" priority_to_protect="BigFavoriteToy"
+/>
 </root>
