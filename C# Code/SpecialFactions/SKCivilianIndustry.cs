@@ -11,7 +11,28 @@ namespace Arcen.AIW2.SK
     {
         public static int MajorVersion = 0;
         public static int ModerateVersion = 2;
-        public static int MinorVersion = 5;
+        public static int MinorVersion = 6;
+
+        public static int LoadedVersionMajor;
+        public static int LoadedVersionModerate;
+        public static int LoadedVersionMinor;
+
+        public static bool IsAtLeastVersion(int major, int moderate, int minor )
+        {
+            if ( LoadedVersionMajor > major )
+                return true;
+            if ( LoadedVersionMajor < major )
+                return false;
+            if ( LoadedVersionModerate > moderate )
+                return true;
+            if ( LoadedVersionModerate < moderate )
+                return false;
+            if ( LoadedVersionMinor > minor )
+                return true;
+            if ( LoadedVersionMinor < minor )
+                return false;
+            return true;
+        }
     }
 
     // Enum used to keep track of what our cargo and trade ships are doing.
@@ -74,11 +95,6 @@ namespace Arcen.AIW2.SK
     // World storage class. Everything can be found from here.
     public class CivilianWorld
     {
-        // Version of the mod. For save data compatibility.
-        public int ModVersionMajor;
-        public int ModVersionModerate;
-        public int ModVersionMinor;
-
         // Faction indexes with an active civilian industry.
         public List<int> Factions;
 
@@ -126,9 +142,9 @@ namespace Arcen.AIW2.SK
         // Loading our data. Make sure the loading order is the same as the saving order.
         public CivilianWorld( ArcenDeserializationBuffer Buffer )
         {
-            this.ModVersionMajor = Buffer.ReadInt32();
-            this.ModVersionModerate = Buffer.ReadInt32();
-            this.ModVersionMinor = Buffer.ReadInt32();
+            ModVersion.LoadedVersionMajor = Buffer.ReadInt32();
+            ModVersion.LoadedVersionModerate = Buffer.ReadInt32();
+            ModVersion.LoadedVersionMinor = Buffer.ReadInt32();
             // Lists require a special touch to load.
             // We'll have saved the number of items stored up above to be used here to determine the number of items to load.
             // ADDITIONALLY we'll need to recreate a blank list beforehand, as loading does not call the Initialization function.
@@ -149,8 +165,38 @@ namespace Arcen.AIW2.SK
         // Index of this faction's Grand Station.
         public int GrandStation;
 
+        // Rebuild timer for Grand Station.
+        public int GrandStationRebuildTimerInSeconds;
+
         // Index of all trade stations that belong to this faction.
         public List<int> TradeStations;
+
+        // Rebuild timer for Trade Stations by planet index.
+        public Dictionary<int, int> TradeStationRebuildTimerInSecondsByPlanet;
+
+        // Functions for setting and getting rebuild timers.
+        public int GetTradeStationRebuildTimer( Planet planet )
+        {
+            return GetTradeStationRebuildTimer( planet.Index );
+        }
+        public int GetTradeStationRebuildTimer( int planet )
+        {
+            if ( TradeStationRebuildTimerInSecondsByPlanet.ContainsKey( planet ) )
+                return TradeStationRebuildTimerInSecondsByPlanet[planet];
+            else
+                return 0;
+        }
+        public void SetTradeStationRebuildTimer( Planet planet, int timer )
+        {
+            SetTradeStationRebuildTimer( planet.Index, timer );
+        }
+        public void SetTradeStationRebuildTimer( int planet, int timer )
+        {
+            if ( TradeStationRebuildTimerInSecondsByPlanet.ContainsKey( planet ) )
+                TradeStationRebuildTimerInSecondsByPlanet[planet] = timer;
+            else
+                TradeStationRebuildTimerInSecondsByPlanet.Add( planet, timer );
+        }
 
         // Index of all cargo ships that belong to this faction.
         public List<int> CargoShips;
@@ -352,7 +398,9 @@ namespace Arcen.AIW2.SK
         public CivilianFaction()
         {
             this.GrandStation = -1;
+            this.GrandStationRebuildTimerInSeconds = 0;
             this.TradeStations = new List<int>();
+            this.TradeStationRebuildTimerInSecondsByPlanet = new Dictionary<int, int>();
             this.CargoShips = new List<int>();
             this.CargoShipsIdle = new List<int>();
             this.CargoShipsLoading = new List<int>();
@@ -380,12 +428,23 @@ namespace Arcen.AIW2.SK
             for ( int x = 0; x < count; x++ )
                 Buffer.AddItem( list[x] );
         }
+        private void SerializeDictionary(Dictionary<int, int> dict, ArcenSerializationBuffer Buffer )
+        {
+            Buffer.AddItem( dict.Count );
+            foreach(int key in dict.Keys)
+            {
+                Buffer.AddItem( key );
+                Buffer.AddItem( dict[key] );
+            }
+        }
         // Saving our data.
         public void SerializeTo( ArcenSerializationBuffer Buffer )
         {
             Buffer.AddItem( this.GrandStation );
+            Buffer.AddItem( this.GrandStationRebuildTimerInSeconds );
 
             SerializeList( TradeStations, Buffer );
+            SerializeDictionary( TradeStationRebuildTimerInSecondsByPlanet, Buffer );
             SerializeList( CargoShips, Buffer );
             SerializeList( MilitiaLeaders, Buffer );
             SerializeList( CargoShipsIdle, Buffer );
@@ -402,7 +461,7 @@ namespace Arcen.AIW2.SK
             SerializeList( this.NextRaidWormholes, Buffer );
         }
         // Deserialize a list.
-        public List<int> DeserizlizeList( ArcenDeserializationBuffer Buffer )
+        public List<int> DeserializeList( ArcenDeserializationBuffer Buffer )
         {
             // Lists require a special touch to load.
             // We'll have saved the number of items stored up above to be used here to determine the number of items to load.
@@ -414,30 +473,43 @@ namespace Arcen.AIW2.SK
                 newList.Add( Buffer.ReadInt32() );
             return newList;
         }
+        public Dictionary<int, int> DeserializeDictionary(ArcenDeserializationBuffer Buffer )
+        {
+            int count = Buffer.ReadInt32();
+            Dictionary<int, int> newDict = new Dictionary<int, int>();
+            for ( int x = 0; x < count; x++ )
+                newDict.Add( Buffer.ReadInt32(), Buffer.ReadInt32() );
+            return newDict;
+        }
         // Loading our data. Make sure the loading order is the same as the saving order.
         public CivilianFaction( ArcenDeserializationBuffer Buffer )
         {
-            int read = 0;
-
             this.GrandStation = Buffer.ReadInt32();
-            read++;
+            if ( ModVersion.IsAtLeastVersion( 0, 2, 6 ) )
+                this.GrandStationRebuildTimerInSeconds = Buffer.ReadInt32();
+            else
+                this.GrandStationRebuildTimerInSeconds = 0;
 
-            this.TradeStations = DeserizlizeList( Buffer );
-            this.CargoShips = DeserizlizeList( Buffer );
-            this.MilitiaLeaders = DeserizlizeList( Buffer );
-            this.CargoShipsIdle = DeserizlizeList( Buffer );
-            this.CargoShipsLoading = DeserizlizeList( Buffer );
-            this.CargoShipsUnloading = DeserizlizeList( Buffer );
-            this.CargoShipsBuilding = DeserizlizeList( Buffer );
-            this.CargoShipsPathing = DeserizlizeList( Buffer );
-            this.CargoShipsEnroute = DeserizlizeList( Buffer );
+            this.TradeStations = DeserializeList( Buffer );
+            if ( ModVersion.IsAtLeastVersion( 0, 2, 6 ) )
+                this.TradeStationRebuildTimerInSecondsByPlanet = DeserializeDictionary( Buffer );
+            else
+                this.TradeStationRebuildTimerInSecondsByPlanet = new Dictionary<int, int>();
+            this.CargoShips = DeserializeList( Buffer );
+            this.MilitiaLeaders = DeserializeList( Buffer );
+            this.CargoShipsIdle = DeserializeList( Buffer );
+            this.CargoShipsLoading = DeserializeList( Buffer );
+            this.CargoShipsUnloading = DeserializeList( Buffer );
+            this.CargoShipsBuilding = DeserializeList( Buffer );
+            this.CargoShipsPathing = DeserializeList( Buffer );
+            this.CargoShipsEnroute = DeserializeList( Buffer );
 
             this.BuildCounter = Buffer.ReadInt32();
             this.MilitiaCounter = Buffer.ReadInt32();
 
             this.NextRaidInThisSeconds = Buffer.ReadInt32();
 
-            this.NextRaidWormholes = DeserizlizeList( Buffer );
+            this.NextRaidWormholes = DeserializeList( Buffer );
 
             // Recreate an empty list on load. Will be populated when needed.
             this.ThreatReports = new List<ThreatReport>();
@@ -982,6 +1054,8 @@ namespace Arcen.AIW2.SK
                      return DelReturn.Continue;
                  if ( commandStation.SelfBuildingMetalRemaining > FInt.Zero )
                      return DelReturn.Continue;
+                 if ( factionData.GetTradeStationRebuildTimer( commandStation.Planet ) > 0 )
+                     return DelReturn.Continue;
 
                  // Get the commandStation's planet.
                  Planet planet = commandStation.Planet;
@@ -1018,7 +1092,7 @@ namespace Arcen.AIW2.SK
                  // Get the planetary faction to spawn our trade station in as.
                  PlanetFaction pFaction = planet.GetPlanetFactionForFaction( faction );
 
-                 // Spawn in the station.
+                 // Spawn in the station's construction point.
                  GameEntity_Squad tradeStation = GameEntity_Squad.CreateNew( pFaction, entityData, entityData.MarkFor( pFaction ), pFaction.FleetUsedAtPlanet, 0, spawnPoint, Context );
 
                  // Add in our trade station to our faction's data
@@ -1040,17 +1114,30 @@ namespace Arcen.AIW2.SK
                  } );
                  tradeCargo.PerSecond[Context.RandomToUse.Next( (int)CivilianResource.Length )] = (int)(mines * 1.5);
 
-                 tradeStation.SetCivilianCargoExt( tradeCargo );
-
-                 // Add buildings to the planet's sbuild list.
-                 entityData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "MilitiaBarracks" );
-                 Fleet.Membership mem = commandStation.FleetMembership.Fleet.GetOrAddMembershipGroupBasedOnSquadType_AssumeNoDuplicates( entityData );
-
-                 // Set the building caps.
-                 mem.ExplicitBaseSquadCap = 3;
+                 // Remove rebuild counter, if applicable.
+                 if ( factionData.TradeStationRebuildTimerInSecondsByPlanet.ContainsKey( commandStation.Planet.Index ) )
+                     factionData.TradeStationRebuildTimerInSecondsByPlanet.Remove( commandStation.Planet.Index );
 
                  return DelReturn.Continue;
              } );
+        }
+
+        // Add buildings for the player to build.
+        public void AddMilitiaBuildings( Faction faction, Faction playerFaction, CivilianFaction factionData, ArcenSimContext Context )
+        {
+            playerFaction.DoForControlledPlanets( delegate ( Planet planet )
+            {
+                // Add buildings to the planet's build list.
+                GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "MilitiaBarracks" );
+
+                // Attempt to add to the planet's build list.
+                Fleet.Membership mem = planet.GetCommandStationOrNull().FleetMembership.Fleet.GetOrAddMembershipGroupBasedOnSquadType_AssumeNoDuplicates( entityData );
+
+                // Set the building caps.
+                mem.ExplicitBaseSquadCap = 3;
+
+                return DelReturn.Continue;
+            } );
         }
 
         // Handle resource processing.
@@ -1714,7 +1801,7 @@ namespace Arcen.AIW2.SK
                         toAdd.Add( newMilitiaShip.PrimaryKeyID );
                     }
                 }
-                else if ( militiaStatus.Status == CivilianMilitiaStatus.Defending ) // Defending units gain both static defenses and mobile forces. These mobile forces will never leave the planet, however.
+                else if ( militiaStatus.Status == CivilianMilitiaStatus.Defending ) // Do turret spawning.
                 {
                     // For each type of unit, process.
                     for ( int y = 0; y < (int)CivilianResource.Length; y++ )
@@ -1722,38 +1809,30 @@ namespace Arcen.AIW2.SK
                         if ( militiaStatus.ProcessedResources[y] <= 0 )
                             continue;
 
-                        TechUpgrade tech = TechUpgradeTable.Instance.GetRowByName( ((CivilianTech)y).ToString(), false, null );
-                        // If the tech doesn't support turrets, pick an entirely random turret.
-                        if ( tech.InternalName == "Raid" || tech.InternalName == "Melee" || tech.InternalName == "Technologist" )
-                            tech = TechUpgradeTable.Instance.GetRowByName( "Turret", false, null );
+                        // Get our tag to search for based on resource type.
+                        string typeTag = "Civ" + ((CivilianTech)y).ToString() + "Turret";
+
                         if ( militiaStatus.TypeData[y] == -1 )
                         {
-                            // Make sure we don't already have a type with this tech in our fleet.
-                            for ( int z = 0; z < militiaShip.FleetMembership.Fleet.MemberGroups.Count; z++ )
-                                if ( militiaShip.FleetMembership.Fleet.MemberGroups[z].TypeData.TechUpgradesThatBenefitMe.Contains( tech ) )
-                                {
-                                    militiaStatus.TypeData[y] = militiaShip.FleetMembership.Fleet.MemberGroups[z].TypeData.RowIndex;
-                                    break;
-                                }
-                            if ( militiaStatus.TypeData[y] == -1 )
+                            // Attempt to find entitydata for our type.
+                            if ( GameEntityTypeDataTable.Instance.RowsByTag.GetHasKey( typeTag ) )
                             {
-                                // Get type data for this resource type.
-                                List<GameEntityTypeData> tempTypes = new List<GameEntityTypeData>();
-                                for ( int z = 0; z < tech.ShipTypesThatThisBenefits.Count; z++ )
-                                {
-                                    GameEntityTypeData tempData = tech.ShipTypesThatThisBenefits[z];
-                                    if ( tempData.IsTurret && tempData.StartingMarkLevel.Ordinal <= 1 && tempData.CostForAIToPurchase > 0 && !tempData.HasAnyWeaponDeathEffects )
-                                    {
-                                        tempTypes.Add( tempData );
-                                    }
-                                }
-                                if ( tempTypes.Count > 0 )
-                                    militiaStatus.TypeData[y] = tempTypes[Context.RandomToUse.Next( tempTypes.Count )].RowIndex;
+                                GameEntityTypeData typeData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, typeTag );
+                                if ( typeData != null )
+                                    militiaStatus.TypeData[y] = typeData.RowIndex;
                             }
+                            else
+                            {
+                                // No matching tag; get a random turret type.
+                                GameEntityTypeData typeData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "CivTurret" );
+                                if ( typeData != null )
+                                    militiaStatus.TypeData[y] = typeData.RowIndex;
+                            }
+
                         }
                         GameEntityTypeData turretData = GameEntityTypeDataTable.Instance.Rows[militiaStatus.TypeData[y]];
 
-                        Fleet.Membership mem = militiaShip.FleetMembership.Fleet.GetOrAddMembershipGroupBasedOnSquadType_AssumeNoDuplicates( turretData );
+                        Fleet.Membership mem = militiaShip.FleetMembership.Fleet.GetOrAddMembershipGroupBasedOnSquadType_WithUniqueIDForDuplicates( turretData, y );
                         mem.ExplicitBaseSquadCap = (factionData.GetCap( faction ) / (FInt.Create( mem.TypeData.GetForMark( mem.TypeData.MarkFor( mem ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
                         militiaShip.Planet.DoForLinkedNeighborsAndSelf( delegate ( Planet otherPlanet )
                          {
@@ -1816,35 +1895,30 @@ namespace Arcen.AIW2.SK
                         if ( militiaStatus.ProcessedResources[y] <= 0 )
                             continue;
 
-                        TechUpgrade tech = TechUpgradeTable.Instance.GetRowByName( ((CivilianTech)y).ToString(), false, null );
+                        // Get our tag to search for based on resource type.
+                        string typeTag = "Civ" + ((CivilianTech)y).ToString() + "Mobile";
+
                         if ( militiaStatus.TypeData[y] == -1 )
                         {
-                            // Make sure we don't already have a type with this tech in our fleet.
-                            for ( int z = 0; z < militiaShip.FleetMembership.Fleet.MemberGroups.Count; z++ )
-                                if ( militiaShip.FleetMembership.Fleet.MemberGroups[z].TypeData.TechUpgradesThatBenefitMe.Contains( tech ) )
-                                {
-                                    militiaStatus.TypeData[y] = militiaShip.FleetMembership.Fleet.MemberGroups[z].TypeData.RowIndex;
-                                }
-                            if ( militiaStatus.TypeData[y] == -1 )
+                            // Attempt to find entitydata for our type.
+                            if ( GameEntityTypeDataTable.Instance.RowsByTag.GetHasKey( typeTag ) )
                             {
-                                // Get type data for this resource type.
-                                List<GameEntityTypeData> tempTypes = new List<GameEntityTypeData>();
-                                for ( int z = 0; z < tech.ShipTypesThatThisBenefits.Count; z++ )
-                                {
-                                    GameEntityTypeData tempData = tech.ShipTypesThatThisBenefits[z];
-                                    if ( (tempData.IsStrikecraft || tempData.SpecialType == SpecialEntityType.Frigate) && tempData.StartingMarkLevel.Ordinal <= 1 && tempData.FleetMembershipStyle != FleetMembershipStyle.Planetary
-                                        && !tempData.IsDrone && !tempData.AlwaysSelfAttritions && tempData.CostForAIToPurchase > 0 && !tempData.HasAnyWeaponDeathEffects )
-                                    {
-                                        tempTypes.Add( tempData );
-                                    }
-                                }
-                                if ( tempTypes.Count > 0 )
-                                    militiaStatus.TypeData[y] = tempTypes[Context.RandomToUse.Next( tempTypes.Count )].RowIndex;
+                                GameEntityTypeData typeData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, typeTag );
+                                if ( typeData != null )
+                                    militiaStatus.TypeData[y] = typeData.RowIndex;
                             }
+                            else
+                            {
+                                // No matching tag; get a random turret type.
+                                GameEntityTypeData typeData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "CivMobile" );
+                                if ( typeData != null )
+                                    militiaStatus.TypeData[y] = typeData.RowIndex;
+                            }
+
                         }
                         GameEntityTypeData shipData = GameEntityTypeDataTable.Instance.Rows[militiaStatus.TypeData[y]];
 
-                        Fleet.Membership mem = militiaShip.FleetMembership.Fleet.GetOrAddMembershipGroupBasedOnSquadType_AssumeNoDuplicates( shipData );
+                        Fleet.Membership mem = militiaShip.FleetMembership.Fleet.GetOrAddMembershipGroupBasedOnSquadType_WithUniqueIDForDuplicates( shipData, y );
                         mem.ExplicitBaseSquadCap = (factionData.GetCap( faction ) / (FInt.Create( mem.TypeData.GetForMark( mem.TypeData.MarkFor( mem ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
                         militiaShip.Planet.DoForLinkedNeighborsAndSelf( delegate ( Planet otherPlanet )
                         {
@@ -1931,7 +2005,7 @@ namespace Arcen.AIW2.SK
                          if ( angle == null )
                              continue;
                          GameEntityTypeData wormholeData = GameEntityTypeDataTable.Instance.GetRowByName( "AIRaidingWormhole", false, null );
-                         if (wormholeData == null )
+                         if ( wormholeData == null )
                          {
                              ArcenDebugging.ArcenDebugLogSingleLine( "Unable to find wormhole entitydata.", Verbosity.ShowAsError );
                              continue;
@@ -1941,7 +2015,7 @@ namespace Arcen.AIW2.SK
                          if ( wormholePoint == ArcenPoint.ZeroZeroPoint )
                              continue;
                          GameEntity_Squad newWormhole = GameEntity_Squad.CreateNew( planet.GetPlanetFactionForFaction( aifaction ), wormholeData,
-                             0, planet.GetPlanetFactionForFaction(aifaction).FleetUsedAtPlanet, 0, wormholePoint, Context );
+                             0, planet.GetPlanetFactionForFaction( aifaction ).FleetUsedAtPlanet, 0, wormholePoint, Context );
 
                          factionData.NextRaidWormholes.Add( newWormhole.PrimaryKeyID );
                      }
@@ -1959,7 +2033,7 @@ namespace Arcen.AIW2.SK
         // AI response.
         public void DoAIRaid( Faction faction, Faction playerFaction, CivilianFaction factionData, ArcenSimContext Context )
         {
-            if (factionData.NextRaidWormholes.Count == 0 )
+            if ( factionData.NextRaidWormholes.Count == 0 )
             {
                 PrepareAIRaid( faction, playerFaction, factionData, Context );
                 return;
@@ -1979,7 +2053,7 @@ namespace Arcen.AIW2.SK
                 for ( int x = 0; x < factionData.CargoShips.Count; x++ )
                 {
                     GameEntity_Squad target = World_AIW2.Instance.GetEntityByID_Squad( factionData.CargoShips[x] );
-                    if ( target != null && target.Planet == wormholeToSpawnAt.Planet && !attackedTargets.Contains(target.PrimaryKeyID) )
+                    if ( target != null && target.Planet == wormholeToSpawnAt.Planet && !attackedTargets.Contains( target.PrimaryKeyID ) )
                     {
                         int thisBudget = 1000;
                         raidBudget -= thisBudget;
@@ -2025,7 +2099,7 @@ namespace Arcen.AIW2.SK
 
             // Reset raid information.
             factionData.NextRaidInThisSeconds = 1800;
-            for(int x = 0; x < factionData.NextRaidWormholes.Count; x++ )
+            for ( int x = 0; x < factionData.NextRaidWormholes.Count; x++ )
             {
                 GameEntity_Squad wormhole = World_AIW2.Instance.GetEntityByID_Squad( factionData.NextRaidWormholes[x] );
                 if ( wormhole != null )
@@ -2078,11 +2152,25 @@ namespace Arcen.AIW2.SK
                 if ( World_AIW2.Instance.GetEntityByID_Squad( factionData.GrandStation ) == null )
                     factionData.GrandStation = -1;
 
-                while ( factionData.GrandStation == -1 )
+                // Increment rebuild timers.
+                if ( factionData.GrandStationRebuildTimerInSeconds > 0 )
+                    factionData.GrandStationRebuildTimerInSeconds--;
+                foreach ( int planet in factionData.TradeStationRebuildTimerInSecondsByPlanet.Keys )
+                {
+                    if (factionData.TradeStationRebuildTimerInSecondsByPlanet[planet] > 0)
+                        factionData.TradeStationRebuildTimerInSecondsByPlanet[planet]--;
+                }
+
+                // Grand Station creation.
+                while ( factionData.GrandStation == -1 && factionData.GrandStationRebuildTimerInSeconds == 0 )
                     CreateGrandStation( faction, playerFaction, factionData, Context );
 
                 // Handle spawning of trade stations.
                 CreateTradeStations( faction, playerFaction, factionData, Context );
+
+                // Add buildings for the player to build.
+                if (World_AIW2.Instance.GameSecond % 15 == 0)
+                    AddMilitiaBuildings( faction, playerFaction, factionData, Context );
 
                 // Handle basic resource generation. (Resources with no requirements, ala Goods or Ore.)
                 DoResources( faction, playerFaction, factionData, Context );
@@ -3072,11 +3160,14 @@ namespace Arcen.AIW2.SK
 
             // Deal with its death.
             if ( factionData.GrandStation == entity.PrimaryKeyID )
-                factionData.GrandStation = -1;
+                factionData.GrandStationRebuildTimerInSeconds = 600;
 
             // Everything else; simply remove it from its respective list(s).
             if ( factionData.TradeStations.Contains( entity.PrimaryKeyID ) )
+            {
                 factionData.TradeStations.Remove( entity.PrimaryKeyID );
+                factionData.SetTradeStationRebuildTimer( entity.Planet, 300 );
+            }
 
             factionData.RemoveCargoShip( entity.PrimaryKeyID );
 
