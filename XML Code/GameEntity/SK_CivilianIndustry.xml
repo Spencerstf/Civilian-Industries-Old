@@ -7,7 +7,7 @@
     -->
     <!--    The main station of our faction.
             Auto builds on player homeworlds.
-            Builds Cargo and Militia Capital Ships.
+            Builds Cargo Ships and Militia Construction Ships
     -->
     <entity name="GrandStation" display_name="Grand Station"
             description="The hub of our civilian trade. If this is destroyed, our civilian economy will crumble."
@@ -38,15 +38,11 @@
     </entity>
     <!--    Trade stations.
             Auto builds on non homeworld planets.
-            Receives Goods from Grand Station to function.
-            Collects Ore from mines on the planet and converts it into Metal.
-            Requests Cargo Ships from the capital to ferry Metal back.
-
             Resources are always inported or exported through this station.
     -->
     <entity name="TradeStation" display_name="Trade Station"
             description="The center of trade for this planet."
-            tags="CivilianIndustryEntity,TradeStation,MetalProducer,ShowsOnNormalDisplayMode"
+            tags="CivilianIndustryEntity,TradeStation,ShowsOnNormalDisplayMode"
             visuals="assets/_finalgamemeshes/humanbuildings/spacedock/spacedock.prefab"
             gimbal_name="AstroTrainStation"
             icon_name="Official/AstroTrainStation" gimbal_icon_size_multiplier="1.5"
@@ -71,6 +67,20 @@
             description_appender_type="Arcen.AIW2.SK.TradeStationDescriptionAppender"
     >
     </entity>
+	<!--	Trade Posts
+			Build by player-controlled Battlestations and Citadels
+			Acts like half-potency trade stations.
+	-->
+	<entity name="TradePost" display_name="Trade Post" copy_from="TradeStation" tags="CivilianIndustryEntity,TradePost"
+			build_sidebar_categories_i_am_part_of="MilitiaBuildings"
+			special_entity_type="NPCFactionCenterpiece"
+			description="A military funded trade post."
+			hull_points="250000" shield_points="500000"
+			metal_cost="500000" energy_consumption="100000"
+			visuals_scale_multiplier="5" size_scale="5"
+	>
+			<metal_flow purpose="SelfConstruction" throughput="500"/>
+	</entity>
     <!--    Cargo ship.
             Used to transfer resources between trade stations and the grand station.
     -->
@@ -103,18 +113,19 @@
             description_appender_type="Arcen.AIW2.SK.CargoShipDescriptionAppender"
     >
     </entity>
-    <!--    Militia Capital Ship.
+    <!--    Militia Construction Ship.
             Spawnt in response to hostlie threat.
-            Will patrol around space.
-            Can deploy into a Militia Outpost.
+            Deploys into Outposts and Patrol Posts.
     -->
-    <entity name="MilitiaCapitalShip" display_name="Militia Capital Ship" skip_export="true" copy_from="AssaultFrigate" tags="MilitiaShip,MilitiaCapitalShip,CivilianIndustryEntity"
+    <entity name="MilitiaConstructionShip" display_name="Militia Construction Ship" skip_export="true" copy_from="AssaultFrigate" tags="MilitiaShip,MilitiaConstructionShip,CivilianIndustryEntity"
             hull_points="500000" shield_points="100000" speed="BelowAverage1" cannot_be_stacked="true"
-            description="The centerpiece of a Miltia Fleet, it is carrying materials required to construct a defensive building."
+            description="A militia ship, it is carrying materials required to construct a defensive building."
             description_appender_dll="SKCivilianIndustry"
             description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender"
             tech_upgrades_that_benefit_me="Unused"
     >
+		<system name="FusionBomb" range="Small5" max_mark_level_to_function="0" />
+		<system name="BallisticCannon" range="Small5" max_mark_level_to_function="0" />
     </entity>
     <!--    Miltia outpost.
             Built to fortify planets from hostile wormholes.
@@ -140,6 +151,21 @@
             description_appender_dll="SKCivilianIndustry"
             description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender"
             tech_upgrades_that_benefit_me="Unused">
+    </entity>
+	<!--    Militia Headquarters
+            Built by player controlled Battlestations and Citadels
+            Builds mobile fleets.
+    -->
+    <entity name="MilitiaHeadquarters" display_name="Militia Headquarters" skip_export="true" copy_from="ShieldGuardPost" tags="MilitiaShip,MilitiaHeadquarters,CivilianIndustryEntity"
+            hull_points="500000" shield_points="1250000" metal_cost="1000000" energy_consumption="100000"
+            strength_multiplier="0.33"
+            description="The centerpiece of a large Militia Fleet, funded by the Military. Requests resources to build mobile forces to support the Battlestation or Citadel that built it."
+			special_entity_type="NPCFactionCenterpiece"
+			build_sidebar_categories_i_am_part_of="MilitiaBuildings"
+            description_appender_dll="SKCivilianIndustry"
+            description_appender_type="Arcen.AIW2.SK.MilitiaShipDescriptionAppender"
+            tech_upgrades_that_benefit_me="Unused">
+			<metal_flow purpose="SelfConstruction" throughput="500"/>
     </entity>
     <!--    Militia Barracks
             Manually placed by the player.
@@ -176,21 +202,21 @@
     -->
     <entity name="CivSniper" display_name="Civilian Sniper" skip_export="true" copy_from="Sniper"
             tags="CivAmbushMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivRaptor" display_name="Civilian Raptor" skip_export="true" copy_from="Raptor"
             tags="CivAmbushMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivAmbushTurret" display_name="Civilian Ambush Turret" skip_export="true" copy_from="AmbushTurret"
             tags="CivAmbushTurret,CivTurret"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
@@ -198,21 +224,21 @@
     
     <entity name="CivConcussionCorvette" display_name="Civilian Concussion Corvette" skip_export="true" copy_from="ConcussionCorvette"
             tags="CivConcussionMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivSiegeFrigate" display_name="Civilian Siege Frigate" skip_export="true" copy_from="SiegeFrigate"
             tags="CivConcussionMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivConcussionTurret" display_name="Civilian Concussion Turret" skip_export="true" copy_from="ConcussionTurret"
             tags="CivConcussionTurret,CivTurret"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
@@ -220,21 +246,21 @@
 
     <entity name="CivPikeCorvette" display_name="Civilian Pike Corvette" skip_export="true" copy_from="PikeCorvette"
             tags="CivDisruptiveMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivAgravicPod" display_name="Civilian Agravic Pod" skip_export="true" copy_from="AgravicPod"
             tags="CivDisruptiveMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivPikeTurret" display_name="Civilian Pike Turret" skip_export="true" copy_from="PikeTurret"
             tags="CivDisruptiveTurret,CivTurret"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
@@ -242,21 +268,21 @@
 
     <entity name="CivPulsarTank" display_name="Civilian Pulsar Tank" skip_export="true" copy_from="PulsarTank"
             tags="CivFusionMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivAssaultFrigate" display_name="Civilian Assault Frigate" skip_export="true" copy_from="AssaultFrigate"
             tags="CivFusionMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivMLRSTurret" display_name="Civilian MLRS Turret" skip_export="true" copy_from="MLRSTurret"
             tags="CivFusionTurret,CivTurret"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
@@ -264,21 +290,21 @@
     
     <entity name="CivVWing" display_name="Civilian V-Wing" skip_export="true" copy_from="VWing"
             tags="CivGeneralistMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivAutocannonMinipod" display_name="Civilian Autocannon Minipod" skip_export="true" copy_from="AutocannonMinipod"
             tags="CivGeneralistMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivTritiumSniperTurret" display_name="Civilian Tritium Sniper Turret" skip_export="true" copy_from="TritiumSniperTurret"
             tags="CivGeneralistTurret,CivTurret"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
@@ -286,14 +312,14 @@
     
     <entity name="CivVampireClaw" display_name="Civilian Vampire Claw" skip_export="true" copy_from="VampireClaw"
             tags="CivMeleeMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivMetabolizingGangsaw" display_name="Civilian Metabolizing Gangsaw" skip_export="true" copy_from="MetabolizingGangsaw"
             tags="CivMeleeMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
@@ -301,14 +327,14 @@
     
     <entity name="CivRaider" display_name="Civilian Raider" skip_export="true" copy_from="Raider"
             tags="CivRaidMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivRaidFrigate" display_name="Civilian Raid Frigate" skip_export="true" copy_from="RaidFrigate"
             tags="CivRaidMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
@@ -316,21 +342,21 @@
     
     <entity name="CivInhibitingTeslaCorvette" display_name="Civilian Inhibiting Tesla Corvette" skip_export="true" copy_from="InhibitingTeslaCorvette"
             tags="CivSplashMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivGrenadeLauncherCorvette" display_name="Civilian Grenade Launcher Corvette" skip_export="true" copy_from="GrenadeLauncherCorvette"
             tags="CivSplashMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivFortifiedTeslaTurret" display_name="Civilian Fortified Tesla Turret" skip_export="true" copy_from="FortifiedTeslaTurret"
             tags="CivSplashTurret,CivTurret"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
@@ -338,21 +364,21 @@
 
     <entity name="CivSpider" display_name="Civilian Spider" skip_export="true" copy_from="Spider"
             tags="CivSubterfugeMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivWarbirdFrigate" display_name="Civilian Warbird Frigate" skip_export="true" copy_from="WarbirdFrigate"
             tags="CivSubterfugeMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivSpiderTurret" display_name="Civilian Spider Turret" skip_export="true" copy_from="SpiderTurret"
             tags="CivSubterfugeTurret,CivTurret"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
@@ -360,14 +386,14 @@
     
     <entity name="CivSentinelGunboat" display_name="Civilian Sentinel Gunboat" skip_export="true" copy_from="SentinelGunboat"
             tags="CivTechnologistMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivEtherjet" display_name="Civilian Etherjet" skip_export="true" copy_from="Etherjet"
             tags="CivTechnologistMobile,CivMobile"
-            multiplier_to_all_healths="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
             damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >

@@ -9,4 +9,5 @@
   <item name="CivilianCargo"    dll_name="SKCivilianIndustry" type_name="Arcen.AIW2.SK.CivilianCargoExternalData" /> 
   <item name="CivilianStatus"   dll_name="SKCivilianIndustry" type_name="Arcen.AIW2.SK.CivilianStatusExternalData" />
   <item name="CivilianMilitia"  dll_name="SKCivilianIndustry" type_name="Arcen.AIW2.SK.CivilianMilitiaExternalData" /> 
+  <item name="CivilianPlanet"   dll_name="SKCivilianIndustry" type_name="Arcen.AIW2.SK.CivilianPlanetExternalData" /> 
 </root>

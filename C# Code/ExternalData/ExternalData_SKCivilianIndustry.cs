@@ -4,10 +4,6 @@ using Arcen.Universal;
 namespace Arcen.AIW2.SK
 {
     // Let the game know how to save our data.
-    // All ExternalData entries in this file need to have their own item set up in the ExternalDataPattern folder in GameData.
-    // The 'name' in the XML must match whatever you assign Data to here. (In my first example, PlayerTrainDirectory.)
-    // Tye 'type_name" in the XML must match the name of the class here, beginning with the space this is loaded in as.
-    // In my first case here, it would be Arcen.AIW2.External.PlayerTrainCarExternalData'.
 
     public class CivilianWorldExternalData : IArcenExternalDataPatternImplementation
     {
@@ -296,6 +292,64 @@ namespace Arcen.AIW2.SK
         public static void SetCivilianMilitiaExt(this GameEntity_Squad ParentObject, CivilianMilitia data)
         {
             ParentObject.ExternalData.GetCollectionByPatternIndex((int)CivilianMilitiaExternalData.PatternIndex).Data[0] = data;
+        }
+    }
+
+    public class CivilianPlanetExternalData : IArcenExternalDataPatternImplementation
+    {
+        // Make sure you use the same class name that you use for whatever data you want saved here.
+        private CivilianPlanet Data;
+
+        public static int PatternIndex;
+
+        // So this is essentially what type of thing we're going to 'attach' our class to.
+        public static string RelatedParentTypeName = "Planet";
+
+        public void ReceivePatternIndex( int Index )
+        {
+            PatternIndex = Index;
+        }
+        public int GetNumberOfItems()
+        {
+            return 1;
+        }
+        public bool GetShouldInitializeOn( string ParentTypeName )
+        {
+            // Figure out which object type has this sort of ExternalData (in this case, Faction)
+            return ArcenStrings.Equals( ParentTypeName, RelatedParentTypeName );
+        }
+
+        public void InitializeData( object ParentObject, object[] Target )
+        {
+            this.Data = new CivilianPlanet();
+            Target[0] = this.Data;
+        }
+        public void SerializeExternalData( object[] Source, ArcenSerializationBuffer Buffer )
+        {
+            //For saving to disk, translate this object into the buffer
+            CivilianPlanet data = (CivilianPlanet)Source[0];
+            data.SerializeTo( Buffer );
+        }
+        public void DeserializeExternalData( object ParentObject, object[] Target, int ItemsToExpect, ArcenDeserializationBuffer Buffer )
+        {
+            //reverses SerializeData; gets the date out of the buffer and populates the variables
+            Target[0] = new CivilianPlanet( Buffer );
+        }
+    }
+
+    // The following is a helper function to the above, designed to allow us to save and load data on demand.
+    public static class ExtensionMethodsFor_CivilianPlanet
+    {
+        // This loads the data assigned to whatever ParentObject you pass. So, say, you could assign the same class to different ships, and each would be able to get back the values assigned to it.
+        // In our specific case here, we're going to be assigning a dictionary to every faction.
+        public static CivilianPlanet GetCivilianPlanetExt( this Planet ParentObject )
+        {
+            return (CivilianPlanet)ParentObject.ExternalData.GetCollectionByPatternIndex( (int)CivilianPlanetExternalData.PatternIndex ).Data[0];
+        }
+        // This meanwhile saves the data, assigning it to whatever ParentObject you pass.
+        public static void SetCivilianPlanetExt( this Planet ParentObject, CivilianPlanet data )
+        {
+            ParentObject.ExternalData.GetCollectionByPatternIndex( (int)CivilianPlanetExternalData.PatternIndex ).Data[0] = data;
         }
     }
 }
