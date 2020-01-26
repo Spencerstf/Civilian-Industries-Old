@@ -2408,7 +2408,7 @@ namespace Arcen.AIW2.SK
                     if ( cargoShip.GetCivilianStatusExt().Destination == militia.PrimaryKeyID )
                     {
                         cargoEnroute++;
-                        if ( cargoEnroute > 4 )
+                        if ( cargoEnroute > 2 )
                             break;
                     }
                 }
