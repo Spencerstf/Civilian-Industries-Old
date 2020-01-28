@@ -201,200 +201,200 @@
     <!--    Ships and turrets spawnt by the militia part of the faction.
     -->
     <entity name="CivSniper" display_name="Civilian Sniper" skip_export="true" copy_from="Sniper"
-            tags="CivAmbushMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivAmbushMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivRaptor" display_name="Civilian Raptor" skip_export="true" copy_from="Raptor"
-            tags="CivAmbushMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivAmbushMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivAmbushTurret" display_name="Civilian Ambush Turret" skip_export="true" copy_from="AmbushTurret"
             tags="CivAmbushTurret,CivTurret"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     
     <entity name="CivConcussionCorvette" display_name="Civilian Concussion Corvette" skip_export="true" copy_from="ConcussionCorvette"
-            tags="CivConcussionMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivConcussionMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivSiegeFrigate" display_name="Civilian Siege Frigate" skip_export="true" copy_from="SiegeFrigate"
-            tags="CivConcussionMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivConcussionMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivConcussionTurret" display_name="Civilian Concussion Turret" skip_export="true" copy_from="ConcussionTurret"
             tags="CivConcussionTurret,CivTurret"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
 
     <entity name="CivPikeCorvette" display_name="Civilian Pike Corvette" skip_export="true" copy_from="PikeCorvette"
-            tags="CivDisruptiveMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivDisruptiveMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivAgravicPod" display_name="Civilian Agravic Pod" skip_export="true" copy_from="AgravicPod"
-            tags="CivDisruptiveMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivDisruptiveMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivPikeTurret" display_name="Civilian Pike Turret" skip_export="true" copy_from="PikeTurret"
             tags="CivDisruptiveTurret,CivTurret"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
 
     <entity name="CivPulsarTank" display_name="Civilian Pulsar Tank" skip_export="true" copy_from="PulsarTank"
-            tags="CivFusionMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivFusionMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivAssaultFrigate" display_name="Civilian Assault Frigate" skip_export="true" copy_from="AssaultFrigate"
-            tags="CivFusionMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivFusionMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivMLRSTurret" display_name="Civilian MLRS Turret" skip_export="true" copy_from="MLRSTurret"
             tags="CivFusionTurret,CivTurret"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     
     <entity name="CivVWing" display_name="Civilian V-Wing" skip_export="true" copy_from="VWing"
-            tags="CivGeneralistMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivGeneralistMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivAutocannonMinipod" display_name="Civilian Autocannon Minipod" skip_export="true" copy_from="AutocannonMinipod"
-            tags="CivGeneralistMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivGeneralistMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivTritiumSniperTurret" display_name="Civilian Tritium Sniper Turret" skip_export="true" copy_from="TritiumSniperTurret"
             tags="CivGeneralistTurret,CivTurret"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     
     <entity name="CivVampireClaw" display_name="Civilian Vampire Claw" skip_export="true" copy_from="VampireClaw"
-            tags="CivMeleeMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivMeleeMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivMetabolizingGangsaw" display_name="Civilian Metabolizing Gangsaw" skip_export="true" copy_from="MetabolizingGangsaw"
-            tags="CivMeleeMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivMeleeMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     
     <entity name="CivRaider" display_name="Civilian Raider" skip_export="true" copy_from="Raider"
-            tags="CivRaidMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivRaidMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivRaidFrigate" display_name="Civilian Raid Frigate" skip_export="true" copy_from="RaidFrigate"
-            tags="CivRaidMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivRaidMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     
     <entity name="CivInhibitingTeslaCorvette" display_name="Civilian Inhibiting Tesla Corvette" skip_export="true" copy_from="InhibitingTeslaCorvette"
-            tags="CivSplashMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivSplashMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivGrenadeLauncherCorvette" display_name="Civilian Grenade Launcher Corvette" skip_export="true" copy_from="GrenadeLauncherCorvette"
-            tags="CivSplashMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivSplashMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivFortifiedTeslaTurret" display_name="Civilian Fortified Tesla Turret" skip_export="true" copy_from="FortifiedTeslaTurret"
             tags="CivSplashTurret,CivTurret"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
 
     <entity name="CivSpider" display_name="Civilian Spider" skip_export="true" copy_from="Spider"
-            tags="CivSubterfugeMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivSubterfugeMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivWarbirdFrigate" display_name="Civilian Warbird Frigate" skip_export="true" copy_from="WarbirdFrigate"
-            tags="CivSubterfugeMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivSubterfugeMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivSpiderTurret" display_name="Civilian Spider Turret" skip_export="true" copy_from="SpiderTurret"
             tags="CivSubterfugeTurret,CivTurret"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     
     <entity name="CivSentinelGunboat" display_name="Civilian Sentinel Gunboat" skip_export="true" copy_from="SentinelGunboat"
-            tags="CivTechnologistMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivTechnologistMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
     <entity name="CivEtherjet" display_name="Civilian Etherjet" skip_export="true" copy_from="Etherjet"
-            tags="CivTechnologistMobile,CivMobile" cannot_be_stacked="true"
-            multiplier_to_all_costs="2" multiplier_to_all_healths="5" 
-            damage_multiplier_to_all_weapons="5" multiplier_to_all_fleet_caps="0.5" 
+            tags="CivTechnologistMobile,CivMobile"
+            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
+            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
             multiplier_to_all_scales="0.5"
     >
     </entity>
