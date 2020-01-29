@@ -2442,15 +2442,26 @@ namespace Arcen.AIW2.SK
                         int thisBudget = 1000;
                         raidBudget -= thisBudget;
                         // Spawn random fast ships that the ai is allowed to have.
-                        GameEntityTypeData workingType = AIShipGroupTable.Instance.GetRowByName( "RaidStrikecraftAndFrigates", false, null ).DrawBag.PickRandomItemAndDoNotReplace( Context.RandomToUse );
-                        if ( workingType == null )
-                            continue;
+                        string[] shipNames = BadgerFactionUtilityMethods.getEntitesInAIShipGroup( AIShipGroupTable.Instance.GetRowByName( "RaidStrikecraftAndFrigates", false, null ) ).Split( ',' );
+                        List<GameEntityTypeData> shipTypes = new List<GameEntityTypeData>();
+                        for(int y = 0; y < shipNames.Length; y++ )
+                        {
+                            if ( shipNames[y].Trim() != "" ) {
+                                GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRowByName( shipNames[y].Trim(), false, null );
+                                if ( entityData != null)
+                                    shipTypes.Add( entityData );
+                            }
+                        }
+                       
                         List<GameEntity_Squad> spawntRaidShips = new List<GameEntity_Squad>();
                         ArcenSparseLookup<GameEntityTypeData, int> raidingShips = new ArcenSparseLookup<GameEntityTypeData, int>();
-                        raidingShips.AddPair( workingType, 0 );
                         while ( thisBudget > 0 )
                         {
-                            raidingShips[workingType]++;
+                            GameEntityTypeData workingType = shipTypes[Context.RandomToUse.Next( shipTypes.Count )];
+                            if ( !raidingShips.GetHasKey( workingType ) )
+                                raidingShips.AddPair( workingType, 1 );
+                            else
+                                raidingShips[workingType]++;
                             thisBudget -= workingType.CostForAIToPurchase;
                         }
                         BaseAIFaction.DeployComposition( Context, aiFaction, null, faction.FactionIndex, raidingShips,
@@ -2702,7 +2713,7 @@ namespace Arcen.AIW2.SK
             // If no free cargo ships, increment build counter and stop.
             if ( factionData.CargoShipsIdle.Count == 0 )
             {
-                factionData.BuildCounter += (factionData.TradeStations.Count );
+                factionData.BuildCounter += (factionData.TradeStations.Count);
                 Engine_Universal.NewTimingsBeingBuilt.FinishRememberingFrame( FramePartTimings.TimingType.ShortTermBackgroundThreadEntry, "DoTradeRequests" );
                 return;
             }
@@ -2751,7 +2762,7 @@ namespace Arcen.AIW2.SK
                         if ( requesterCargo.Amount[y] > 100 )
                         {
                             int urgency = (int)Math.Ceiling( (1.0 * requesterCargo.Amount[y] / requesterCargo.Capacity[y]) * (requesterCargo.PerSecond[y] * 2) );
-                            ArcenDebugging.SingleLineQuickDebug( "Urgency: " + urgency + "Incoming: " + incomingForPickup );
+
                             if ( urgency - incomingForPickup > 0 )
                                 factionData.TradeRequests.Add( new TradeRequest( (CivilianResource)y, urgency, true, requester, 3 ) );
                         }
@@ -3126,13 +3137,18 @@ namespace Arcen.AIW2.SK
                         continue;
                     }
 
+                    // Generate our location to move to.
+                    ArcenPoint point = ship.WorldLocation.GetPointAtAngleAndDistance( ship.WorldLocation.GetAngleToDegrees( wormhole.WorldLocation ), 5000 );
+                    if ( point == ArcenPoint.ZeroZeroPoint )
+                        continue;
+
                     // Tell the game what kind of command we want to do.
                     // Here, we'll be using the self descriptive MoveManyToOnePoint command.
                     // Note: Despite saying Many, it is also used for singular movement commands.
                     GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.MoveManyToOnePoint], GameCommandSource.AnythingElse );
 
                     // Let the game know where we want to move to.
-                    command.RelatedPoints.Add( ship.WorldLocation.GetPointAtAngleAndDistance( ship.WorldLocation.GetAngleToDegrees( wormhole.WorldLocation ), 5000 ) );
+                    command.RelatedPoints.Add( point );
 
                     // Have the command apply to our ship.
                     command.RelatedEntityIDs.Add( ship.PrimaryKeyID );
