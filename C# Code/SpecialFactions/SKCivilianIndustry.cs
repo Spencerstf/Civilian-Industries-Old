@@ -223,7 +223,8 @@ namespace Arcen.AIW2.SK
         // Contains the calculated threat value on every planet.
         // Calculated threat is all hostile strength - all friendly (excluding our own) strength.
         public List<ThreatReport> ThreatReports;
-        public List<TradeRequest> TradeRequests;
+        public List<TradeRequest> ImportRequests;
+        public List<TradeRequest> ExportRequests;
 
         // Get the threat value for a planet.
         public (int MilitiaGuard, int MilitiaMobile, int FriendlyGuard, int FriendlyMobile, int Hostile, int Wave) GetThreat( Planet planet )
@@ -412,7 +413,8 @@ namespace Arcen.AIW2.SK
             this.NextRaidWormholes = new List<int>();
 
             this.ThreatReports = new List<ThreatReport>();
-            this.TradeRequests = new List<TradeRequest>();
+            this.ImportRequests = new List<TradeRequest>();
+            this.ExportRequests = new List<TradeRequest>();
         }
         // Serialize a list.
         private void SerializeList( List<int> list, ArcenSerializationBuffer Buffer )
@@ -506,7 +508,8 @@ namespace Arcen.AIW2.SK
 
             // Recreate an empty list on load. Will be populated when needed.
             this.ThreatReports = new List<ThreatReport>();
-            this.TradeRequests = new List<TradeRequest>();
+            this.ImportRequests = new List<TradeRequest>();
+            this.ExportRequests = new List<TradeRequest>();
         }
     }
 
@@ -662,9 +665,6 @@ namespace Arcen.AIW2.SK
         // The urgency of the request.
         public int Urgency;
 
-        // Is this an Export request?
-        public bool IsExport;
-
         // The station with this request.
         public GameEntity_Squad Station;
 
@@ -674,22 +674,20 @@ namespace Arcen.AIW2.SK
         // Finished being processed.
         public bool Processed;
 
-        public TradeRequest( CivilianResource request, List<CivilianResource> declined, int urgency, bool isExport, GameEntity_Squad station, int maxSearchHops )
+        public TradeRequest( CivilianResource request, List<CivilianResource> declined, int urgency, GameEntity_Squad station, int maxSearchHops )
         {
             Requested = request;
             Declined = declined;
             Urgency = urgency;
-            IsExport = isExport;
             Station = station;
             Processed = false;
             MaxSearchHops = maxSearchHops;
         }
-        public TradeRequest( CivilianResource request, int urgency, bool isExport, GameEntity_Squad station, int maxSearchHops )
+        public TradeRequest( CivilianResource request, int urgency, GameEntity_Squad station, int maxSearchHops )
         {
             Requested = request;
             Declined = new List<CivilianResource>();
             Urgency = urgency;
-            IsExport = isExport;
             Station = station;
             Processed = false;
             MaxSearchHops = maxSearchHops;
@@ -703,14 +701,14 @@ namespace Arcen.AIW2.SK
 
         public override string ToString()
         {
-            string output = "Requested: " + Requested.ToString() + " Urgency: " + Urgency + " Export: " + IsExport + " Planet: " + Station.Planet.Name + " Processed: " + Processed;
+            string output = "Requested: " + Requested.ToString() + " Urgency: " + Urgency + " Planet: " + Station.Planet.Name + " Processed: " + Processed;
             if ( Declined.Count > 0 )
             {
                 output += " Declined: ";
                 for ( int x = 0; x < Declined.Count; x++ )
                     output += Declined[x].ToString() + " ";
             }
-            return "Requested:" + Requested.ToString() + " Urgency:" + Urgency + " Export: " + IsExport + " Planet:" + Station.Planet.Name + " Processed:" + Processed;
+            return "Requested:" + Requested.ToString() + " Urgency:" + Urgency + " Planet:" + Station.Planet.Name + " Processed:" + Processed;
         }
     }
 
@@ -778,7 +776,7 @@ namespace Arcen.AIW2.SK
         // It will only interact to hostile forces on or adjacent to this.
         public int PlanetFocus;
 
-        // Wormhole that this fleet has been assigned to. If -1, it will instead find an unchosen mine on the planet.
+        // Wormhole that this fleet has been assigned to. If -1, it will instead find an unclaimed mine on the planet.
         public int EntityFocus;
 
         // GameEntityTypeData that this militia builds, a list of every ship of that type under their control, and their capacity.
@@ -1101,7 +1099,7 @@ namespace Arcen.AIW2.SK
                         Buffer.EndColor();
 
                         double countCostModifier = 1.0 + ((militiaData.ShipCapacity[x] - count + 1.0) / militiaData.ShipCapacity[x]);
-                        int cost = (int)(entityData.CostForAIToPurchase * countCostModifier * (militiaData.CostMultiplier / 100.0));
+                        int cost = (int)(SpecialFaction_SKCivilianIndustry.CostIntensityModifier(RelatedEntityOrNull.PlanetFaction.Faction) * (entityData.CostForAIToPurchase * countCostModifier * (militiaData.CostMultiplier / 100.0)));
 
                         if ( count < militiaData.ShipCapacity[x] )
                         {
@@ -1138,7 +1136,14 @@ namespace Arcen.AIW2.SK
         // When was the last time we sent a journel message? To update the player about civies are doing.
         protected Dictionary<Planet, int> LastGameSecondForMessageAboutThisPlanet;
 
-        public CivilianWorld worldData;
+        public static CivilianWorld worldData;
+
+        // Scale ship costs based on intensity. 5 is 100%, with a 10% step up or down based on intensity.
+        public static double CostIntensityModifier(Faction faction)
+        {
+            int intensity = faction.Ex_MinorFactionCommon_GetPrimitives().Intensity;
+            return 1.5 - (intensity * 0.1);
+        }
 
         // Set up initial relationships.
         public override void SetStartingFactionRelationships( Faction faction )
@@ -1172,7 +1177,7 @@ namespace Arcen.AIW2.SK
         {
             // If we have no world data, uh-oh, we won't be able to find where they're supposed to go.
             // Eeventually, add some sort of fallback logic for militia ships. For now, just skip em.
-            if ( this.worldData != null )
+            if ( SpecialFaction_SKCivilianIndustry.worldData != null )
             {
                 // Find out what fleet the original unit is in, and add our new squad to it.
                 for ( int x = 0; x < worldData.Factions.Count; x++ )
@@ -1991,118 +1996,121 @@ namespace Arcen.AIW2.SK
                     continue;
                 CivilianMilitia militiaStatus = militiaShip.GetCivilianMilitiaExt();
                 CivilianCargo militiaCargo = militiaShip.GetCivilianCargoExt();
-                // Load its goal.
-                GameEntity_Squad goalStation = null;
-                // Get its planet.
-                Planet planet = World_AIW2.Instance.GetPlanetByIndex( militiaStatus.PlanetFocus );
-                // If planet not found, and not already deployed, idle the militia ship.
-                if ( planet == null && militiaShip.TypeData.IsMobile )
+                if ( militiaStatus.Status != CivilianMilitiaStatus.Defending && militiaStatus.Status != CivilianMilitiaStatus.Patrolling )
                 {
-                    militiaStatus.Status = CivilianMilitiaStatus.Idle;
-                    militiaShip.SetCivilianMilitiaExt( militiaStatus );
-                    continue;
-                }
-                // Skip if not at planet yet.
-                if ( militiaShip.Planet.Index != militiaStatus.PlanetFocus )
-                    continue;
-                // Get its goal's station.
-                planet.DoForEntities( delegate ( GameEntity_Squad entity )
-                 {
-                     // If we find its index in our records, thats our goal station.
-                     if ( factionData.TradeStations.Contains( entity.PrimaryKeyID ) && entity.TypeData.GetHasTag( "TradeStation" ) )
+                    // Load its goal.
+                    GameEntity_Squad goalStation = null;
+                    // Get its planet.
+                    Planet planet = World_AIW2.Instance.GetPlanetByIndex( militiaStatus.PlanetFocus );
+                    // If planet not found, and not already deployed, idle the militia ship.
+                    if ( planet == null && militiaShip.TypeData.IsMobile )
+                    {
+                        militiaStatus.Status = CivilianMilitiaStatus.Idle;
+                        militiaShip.SetCivilianMilitiaExt( militiaStatus );
+                        continue;
+                    }
+                    // Skip if not at planet yet.
+                    if ( militiaShip.Planet.Index != militiaStatus.PlanetFocus )
+                        continue;
+                    // Get its goal's station.
+                    planet.DoForEntities( delegate ( GameEntity_Squad entity )
                      {
-                         goalStation = entity;
-                         return DelReturn.Break;
-                     }
+                         // If we find its index in our records, thats our goal station.
+                         if ( factionData.TradeStations.Contains( entity.PrimaryKeyID ) && entity.TypeData.GetHasTag( "TradeStation" ) )
+                         {
+                             goalStation = entity;
+                             return DelReturn.Break;
+                         }
 
-                     return DelReturn.Continue;
-                 } );
-                // If goal station not found, and not already deployed, idle the militia ship.
-                if ( goalStation == null && militiaShip.TypeData.IsMobile )
-                {
-                    militiaStatus.Status = CivilianMilitiaStatus.Idle;
-                    militiaShip.SetCivilianMilitiaExt( militiaStatus );
-                    continue;
-                }
-
-                // If pathing, check for arrival.
-                if ( militiaStatus.Status == CivilianMilitiaStatus.PathingForMine )
-                {
-                    // If nearby, advance status.
-                    if ( militiaShip.GetDistanceTo_ExpensiveAccurate( goalStation.WorldLocation, true, true ) < 500 )
+                         return DelReturn.Continue;
+                     } );
+                    // If goal station not found, and not already deployed, idle the militia ship.
+                    if ( goalStation == null && militiaShip.TypeData.IsMobile )
                     {
-                        militiaStatus.Status = CivilianMilitiaStatus.EnrouteMine;
+                        militiaStatus.Status = CivilianMilitiaStatus.Idle;
+                        militiaShip.SetCivilianMilitiaExt( militiaStatus );
+                        continue;
                     }
-                }
-                else if ( militiaStatus.Status == CivilianMilitiaStatus.PathingForWormhole )
-                {
-                    // If nearby, advance status.
-                    if ( militiaShip.GetDistanceTo_ExpensiveAccurate( goalStation.WorldLocation, true, true ) < 500 )
+
+                    // If pathing, check for arrival.
+                    if ( militiaStatus.Status == CivilianMilitiaStatus.PathingForMine )
                     {
-                        militiaStatus.Status = CivilianMilitiaStatus.EnrouteWormhole;
+                        // If nearby, advance status.
+                        if ( militiaShip.GetDistanceTo_ExpensiveAccurate( goalStation.WorldLocation, true, true ) < 500 )
+                        {
+                            militiaStatus.Status = CivilianMilitiaStatus.EnrouteMine;
+                        }
                     }
-                }
-                // If enroute, check for sweet spot.
-                if ( militiaStatus.Status == CivilianMilitiaStatus.EnrouteWormhole )
-                {
-                    int stationDist = militiaShip.GetDistanceTo_ExpensiveAccurate( goalStation.WorldLocation, true, true );
-                    int wormDist = militiaShip.GetDistanceTo_ExpensiveAccurate( militiaStatus.getWormhole().WorldLocation, true, true );
-                    int range = 10000;
-                    if ( stationDist > range * 0.3 &&
-                        (stationDist > range || wormDist < range) )
+                    else if ( militiaStatus.Status == CivilianMilitiaStatus.PathingForWormhole )
                     {
-                        // Prepare its old id to be removed.
-                        toRemove.Add( militiaShip.PrimaryKeyID );
-
-                        // Optimal distance. Transform the ship and update its status.
-                        militiaStatus.Status = CivilianMilitiaStatus.Defending;
-
-                        // Load its station data.
-                        GameEntityTypeData outpostData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "MilitiaOutpost" );
-
-                        // Transform it.
-                        GameEntity_Squad newMilitiaShip = militiaShip.TransformInto( Context, outpostData, 1 );
-
-                        // Update centerpiece to it.
-                        militiaStatus.Centerpiece = newMilitiaShip.PrimaryKeyID;
-
-                        // Move the information to our new ship.
-                        newMilitiaShip.SetCivilianMilitiaExt( militiaStatus );
-
-                        // Prepare its new id to be added.
-                        toAdd.Add( newMilitiaShip.PrimaryKeyID );
+                        // If nearby, advance status.
+                        if ( militiaShip.GetDistanceTo_ExpensiveAccurate( goalStation.WorldLocation, true, true ) < 500 )
+                        {
+                            militiaStatus.Status = CivilianMilitiaStatus.EnrouteWormhole;
+                        }
                     }
-                }
-                // If enroute, check for sweet spot.
-                else if ( militiaStatus.Status == CivilianMilitiaStatus.EnrouteMine )
-                {
-                    int mineDist = militiaShip.GetDistanceTo_ExpensiveAccurate( militiaStatus.getMine().WorldLocation, true, true );
-                    int range = 1000;
-                    if ( mineDist < range )
+                    // If enroute, check for sweet spot.
+                    if ( militiaStatus.Status == CivilianMilitiaStatus.EnrouteWormhole )
                     {
-                        // Prepare its old id to be removed.
-                        toRemove.Add( militiaShip.PrimaryKeyID );
+                        int stationDist = militiaShip.GetDistanceTo_ExpensiveAccurate( goalStation.WorldLocation, true, true );
+                        int wormDist = militiaShip.GetDistanceTo_ExpensiveAccurate( militiaStatus.getWormhole().WorldLocation, true, true );
+                        int range = 10000;
+                        if ( stationDist > range * 0.3 &&
+                            (stationDist > range || wormDist < range) )
+                        {
+                            // Prepare its old id to be removed.
+                            toRemove.Add( militiaShip.PrimaryKeyID );
 
-                        // Converting to a Patrol Post, upgrade the fleet status to a mobile patrol.
-                        militiaStatus.Status = CivilianMilitiaStatus.Patrolling;
+                            // Optimal distance. Transform the ship and update its status.
+                            militiaStatus.Status = CivilianMilitiaStatus.Defending;
 
-                        // Load its station data.
-                        GameEntityTypeData outpostData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "MilitiaPatrolPost" );
+                            // Load its station data.
+                            GameEntityTypeData outpostData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "MilitiaOutpost" );
 
-                        // Transform it.
-                        GameEntity_Squad newMilitiaShip = militiaShip.TransformInto( Context, outpostData, 1 );
+                            // Transform it.
+                            GameEntity_Squad newMilitiaShip = militiaShip.TransformInto( Context, outpostData, 1 );
 
-                        // Make sure its not overlapping.
-                        newMilitiaShip.SetWorldLocation( newMilitiaShip.Planet.GetSafePlacementPoint( Context, outpostData, newMilitiaShip.WorldLocation, 0, 1000 ) );
+                            // Update centerpiece to it.
+                            militiaStatus.Centerpiece = newMilitiaShip.PrimaryKeyID;
 
-                        // Update centerpiece to it.
-                        militiaStatus.Centerpiece = newMilitiaShip.PrimaryKeyID;
+                            // Move the information to our new ship.
+                            newMilitiaShip.SetCivilianMilitiaExt( militiaStatus );
 
-                        // Move the information to our new ship.
-                        newMilitiaShip.SetCivilianMilitiaExt( militiaStatus );
+                            // Prepare its new id to be added.
+                            toAdd.Add( newMilitiaShip.PrimaryKeyID );
+                        }
+                    }
+                    // If enroute, check for sweet spot.
+                    else if ( militiaStatus.Status == CivilianMilitiaStatus.EnrouteMine )
+                    {
+                        int mineDist = militiaShip.GetDistanceTo_ExpensiveAccurate( militiaStatus.getMine().WorldLocation, true, true );
+                        int range = 1000;
+                        if ( mineDist < range )
+                        {
+                            // Prepare its old id to be removed.
+                            toRemove.Add( militiaShip.PrimaryKeyID );
 
-                        // Prepare its new id to be added.
-                        toAdd.Add( newMilitiaShip.PrimaryKeyID );
+                            // Converting to a Patrol Post, upgrade the fleet status to a mobile patrol status.
+                            militiaStatus.Status = CivilianMilitiaStatus.Patrolling;
+
+                            // Load its station data.
+                            GameEntityTypeData outpostData = GameEntityTypeDataTable.Instance.GetRandomRowWithTag( Context, "MilitiaPatrolPost" );
+
+                            // Transform it.
+                            GameEntity_Squad newMilitiaShip = militiaShip.TransformInto( Context, outpostData, 1 );
+
+                            // Make sure its not overlapping.
+                            newMilitiaShip.SetWorldLocation( newMilitiaShip.Planet.GetSafePlacementPoint( Context, outpostData, newMilitiaShip.WorldLocation, 0, 1000 ) );
+
+                            // Update centerpiece to it.
+                            militiaStatus.Centerpiece = newMilitiaShip.PrimaryKeyID;
+
+                            // Move the information to our new ship.
+                            newMilitiaShip.SetCivilianMilitiaExt( militiaStatus );
+
+                            // Prepare its new id to be added.
+                            toAdd.Add( newMilitiaShip.PrimaryKeyID );
+                        }
                     }
                 }
                 else if ( militiaStatus.Status == CivilianMilitiaStatus.Defending ) // Do turret spawning.
@@ -2147,28 +2155,11 @@ namespace Arcen.AIW2.SK
                         }
 
                         GameEntityTypeData turretData = GameEntityTypeDataTable.Instance.GetRowByName( militiaStatus.ShipTypeData[y], false, null );
-
-                        militiaStatus.ShipCapacity[y] = (factionData.GetCap( faction ) / (FInt.Create( turretData.GetForMark( faction.GetGlobalMarkLevelForShipLine( turretData ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
-                        militiaShip.Planet.DoForLinkedNeighborsAndSelf( delegate ( Planet otherPlanet )
-                         {
-                             otherPlanet.DoForEntities( EntityRollupType.SpecialTypes, delegate ( GameEntity_Squad building )
-                             {
-                                 if ( building.TypeData.SpecialType == SpecialEntityType.NPCFactionCenterpiece && building.TypeData.GetHasTag( "MilitiaBarracks" )
-                                 && building.SelfBuildingMetalRemaining <= 0 && building.SecondsSpentAsRemains <= 0 )
-                                     if ( turretData.MultiplierToAllFleetCaps == 0 )
-                                         militiaStatus.ShipCapacity[y] += Math.Max( 1, (FInt.Create( militiaStatus.ShipCapacity[y], true ) / 3).GetNearestIntPreferringHigher() );
-                                     else
-                                         militiaStatus.ShipCapacity[y] += Math.Max( (1 / turretData.MultiplierToAllFleetCaps).GetNearestIntPreferringHigher(), (FInt.Create( militiaStatus.ShipCapacity[y], true ) / 3).GetNearestIntPreferringHigher() );
-                                 return DelReturn.Continue;
-                             } );
-                             return DelReturn.Continue;
-                         } );
-                        militiaStatus.ShipCapacity[y] = (int)(militiaStatus.ShipCapacity[y] * (militiaStatus.CapMultiplier / 100.0));
                         int count = militiaStatus.GetShipCount( militiaStatus.ShipTypeData[y] );
                         if ( count < militiaStatus.ShipCapacity[y] )
                         {
                             double countCostModifier = 1.0 + ((militiaStatus.ShipCapacity[y] - count + 1.0) / militiaStatus.ShipCapacity[y]);
-                            int cost = (int)(turretData.CostForAIToPurchase * countCostModifier * (militiaStatus.CostMultiplier / 100.0));
+                            int cost = (int)(CostIntensityModifier(faction) * (turretData.CostForAIToPurchase * countCostModifier * (militiaStatus.CostMultiplier / 100.0)));
 
                             if ( militiaCargo.Capacity[y] < cost )
                                 militiaCargo.Capacity[y] = (int)(cost * 1.25); // Stockpile some resources.
@@ -2179,9 +2170,9 @@ namespace Arcen.AIW2.SK
                                 militiaCargo.Amount[y] -= cost;
                                 // Spawn turret.
                                 // Get a focal point directed towards the wormhole.
-                                ArcenPoint basePoint = militiaShip.WorldLocation.GetPointAtAngleAndDistance( militiaShip.WorldLocation.GetAngleToDegrees( militiaStatus.getWormhole().WorldLocation ), Math.Min( 5000, goalStation.GetDistanceTo_ExpensiveAccurate( militiaStatus.getWormhole().WorldLocation, true, true ) / 2 ) );
+                                ArcenPoint basePoint = militiaShip.WorldLocation.GetPointAtAngleAndDistance( militiaShip.WorldLocation.GetAngleToDegrees( militiaStatus.getWormhole().WorldLocation ), Math.Min( 5000, militiaShip.GetDistanceTo_ExpensiveAccurate( militiaStatus.getWormhole().WorldLocation, true, true ) / 2 ) );
                                 // Get a point around it, as close as possible.
-                                ArcenPoint spawnPoint = basePoint.GetRandomPointWithinDistance( Context.RandomToUse, Math.Min( 500, goalStation.GetDistanceTo_ExpensiveAccurate( militiaStatus.getWormhole().WorldLocation, true, true ) / 4 ), Math.Min( 2500, goalStation.GetDistanceTo_ExpensiveAccurate( militiaStatus.getWormhole().WorldLocation, true, true ) / 2 ) );
+                                ArcenPoint spawnPoint = basePoint.GetRandomPointWithinDistance( Context.RandomToUse, Math.Min( 500, militiaShip.GetDistanceTo_ExpensiveAccurate( militiaStatus.getWormhole().WorldLocation, true, true ) / 4 ), Math.Min( 2500, militiaShip.GetDistanceTo_ExpensiveAccurate( militiaStatus.getWormhole().WorldLocation, true, true ) / 2 ) );
 
                                 // Get the planet faction to spawn it in as.
                                 PlanetFaction pFaction = militiaShip.Planet.GetPlanetFactionForFaction( faction );
@@ -2255,27 +2246,11 @@ namespace Arcen.AIW2.SK
 
                         GameEntityTypeData shipData = GameEntityTypeDataTable.Instance.GetRowByName( militiaStatus.ShipTypeData[y], false, null );
 
-                        militiaStatus.ShipCapacity[y] = (factionData.GetCap( faction ) / (FInt.Create( shipData.GetForMark( faction.GetGlobalMarkLevelForShipLine( shipData ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
-                        militiaShip.Planet.DoForLinkedNeighborsAndSelf( delegate ( Planet otherPlanet )
-                        {
-                            otherPlanet.DoForEntities( EntityRollupType.SpecialTypes, delegate ( GameEntity_Squad building )
-                            {
-                                if ( building.TypeData.SpecialType == SpecialEntityType.NPCFactionCenterpiece && building.TypeData.GetHasTag( "MilitiaBarracks" )
-                                && building.SelfBuildingMetalRemaining <= 0 && building.SecondsSpentAsRemains <= 0 )
-                                    if ( shipData.MultiplierToAllFleetCaps == 0 )
-                                        militiaStatus.ShipCapacity[y] += Math.Max( 1, (FInt.Create( militiaStatus.ShipCapacity[y], true ) / 3).GetNearestIntPreferringHigher() );
-                                    else
-                                        militiaStatus.ShipCapacity[y] += Math.Max( (1 / shipData.MultiplierToAllFleetCaps).GetNearestIntPreferringHigher(), (FInt.Create( militiaStatus.ShipCapacity[y], true ) / 3).GetNearestIntPreferringHigher() );
-                                return DelReturn.Continue;
-                            } );
-                            return DelReturn.Continue;
-                        } );
-                        militiaStatus.ShipCapacity[y] = (int)(militiaStatus.ShipCapacity[y] * (militiaStatus.CapMultiplier / 100.0));
                         int count = militiaStatus.GetShipCount( militiaStatus.ShipTypeData[y] );
                         if ( count < militiaStatus.ShipCapacity[y] )
                         {
                             double countCostModifier = 1.0 + ((militiaStatus.ShipCapacity[y] - count + 1.0) / militiaStatus.ShipCapacity[y]);
-                            int cost = (int)(shipData.CostForAIToPurchase * countCostModifier * (militiaStatus.CostMultiplier / 100.0));
+                            int cost = (int)(CostIntensityModifier(faction) * (shipData.CostForAIToPurchase * countCostModifier * (militiaStatus.CostMultiplier / 100.0)));
 
                             if ( militiaCargo.Capacity[y] < cost )
                                 militiaCargo.Capacity[y] = (int)(cost * 1.25); // Stockpile some resources.
@@ -2306,7 +2281,7 @@ namespace Arcen.AIW2.SK
                                         GameEntity_Squad randomSquad = World_AIW2.Instance.GetEntityByID_Squad( militiaStatus.Ships[y][Context.RandomToUse.Next( militiaStatus.Ships[y].Count )] );
                                         if ( randomSquad != null )
                                         {
-                                            randomSquad.ExtraStackedSquadsInThis++;
+                                            randomSquad.AddOrSetExtraStackedSquadsInThis( 1, false );
                                             completed = true;
                                             break;
                                         }
@@ -2412,6 +2387,70 @@ namespace Arcen.AIW2.SK
         }
 
         // AI response.
+        public void SpawnRaidGroup(GameEntity_Squad target, List<int> availableWormholes, ref List<int> attackedTargets, ref int raidBudget, Faction aiFaction, Faction faction, ArcenSimContext Context)
+        {
+            // Get a random wormhole thats on the target's planet.
+            List<GameEntity_Squad> validWormholes = new List<GameEntity_Squad>();
+            for(int x = 0; x < availableWormholes.Count; x++ )
+            {
+                GameEntity_Squad wormhole = World_AIW2.Instance.GetEntityByID_Squad( availableWormholes[x] );
+                if ( wormhole != null && wormhole.Planet.Index == target.Planet.Index )
+                    validWormholes.Add( wormhole );
+            }
+            if ( validWormholes.Count <= 0 )
+                return; // No valid wormholes for this target.
+            GameEntity_Squad wormholeToSpawnAt = validWormholes[Context.RandomToUse.Next( validWormholes.Count )];
+            if ( target != null && target.Planet == wormholeToSpawnAt.Planet && !attackedTargets.Contains( target.PrimaryKeyID ) )
+            {
+                int thisBudget = 2500;
+                raidBudget -= thisBudget;
+                // Spawn random fast ships that the ai is allowed to have.
+                string[] shipNames = BadgerFactionUtilityMethods.getEntitesInAIShipGroup( AIShipGroupTable.Instance.GetRowByName( "SneakyStrikecraft", false, null ) ).Split( ',' );
+                List<GameEntityTypeData> shipTypes = new List<GameEntityTypeData>();
+                for ( int y = 0; y < shipNames.Length; y++ )
+                {
+                    if ( shipNames[y].Trim() != "" )
+                    {
+                        GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRowByName( shipNames[y].Trim(), false, null );
+                        if ( entityData != null )
+                            shipTypes.Add( entityData );
+                    }
+                }
+
+                List<GameEntity_Squad> spawntRaidShips = new List<GameEntity_Squad>();
+                ArcenSparseLookup<GameEntityTypeData, int> raidingShips = new ArcenSparseLookup<GameEntityTypeData, int>();
+                while ( thisBudget > 0 )
+                {
+                    GameEntityTypeData workingType = shipTypes[Context.RandomToUse.Next( shipTypes.Count )];
+                    if ( !raidingShips.GetHasKey( workingType ) )
+                        raidingShips.AddPair( workingType, 1 );
+                    else
+                        raidingShips[workingType]++;
+                    thisBudget -= workingType.CostForAIToPurchase;
+                }
+                BaseAIFaction.DeployComposition( Context, aiFaction, null, faction.FactionIndex, raidingShips,
+                    ref spawntRaidShips, wormholeToSpawnAt.WorldLocation, wormholeToSpawnAt.Planet );
+
+                for ( int shipCount = 0; shipCount < spawntRaidShips.Count; shipCount++ )
+                {
+                    spawntRaidShips[shipCount].ExoGalacticAttackTarget = SquadWrapper.Create( target );
+                    if ( spawntRaidShips[shipCount].ExoGalacticAttackTarget.GetSquad() == null )
+                        throw new Exception( "This is probably too paranoid" );
+
+                    spawntRaidShips[shipCount].ExoGalacticAttackPlanetIdx = target.Planet.Index; //set the planet index so that AI long term planning knows we are in an Exo
+                }
+
+                GameCommand speedCommand = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.CreateSpeedGroup_ExoAttack], GameCommandSource.AnythingElse );
+                for ( int shipCount = 0; shipCount < spawntRaidShips.Count; shipCount++ )
+                    speedCommand.RelatedEntityIDs.Add( spawntRaidShips[shipCount].PrimaryKeyID );
+                int exoGroupSpeed = 2200;
+                speedCommand.RelatedBool = true;
+                speedCommand.RelatedIntegers.Add( exoGroupSpeed );
+                World_AIW2.Instance.QueueGameCommand( speedCommand, false );
+
+                attackedTargets.Add( target.PrimaryKeyID );
+            }
+        }
         public void DoAIRaid( Faction faction, Faction playerFaction, CivilianFaction factionData, ArcenSimContext Context )
         {
             if ( factionData.NextRaidWormholes.Count == 0 )
@@ -2427,67 +2466,16 @@ namespace Arcen.AIW2.SK
             // Raid strength increases based on the AI's normal wave budget, increased by the number of trade stations we have.
             int timeFactor = 900; // Minimum delay between raid waves.
             int budgetFactor = SpecialFaction_AI.Instance.GetSpecificBudgetAIPurchaseCostGainPerSecond( aiFaction, AIBudgetType.Wave, true, true ).GetNearestIntPreferringHigher();
-            int tradeFactor = factionData.TradeStations.Count * 10;
+            int tradeFactor = factionData.TradeStations.Count * 3;
             int raidBudget = (budgetFactor + tradeFactor) * timeFactor;
+
             // Stop once we're over budget. (Though allow our last wave to exceed it if needed.)
-            while ( raidBudget > 0 )
+            for ( int x = 0; x < factionData.CargoShips.Count && raidBudget > 0; x++ )
             {
-                GameEntity_Base wormholeToSpawnAt = World_AIW2.Instance.GetEntityByID_Squad(
-                    factionData.NextRaidWormholes[Context.RandomToUse.Next( factionData.NextRaidWormholes.Count )] );
-                for ( int x = 0; x < factionData.CargoShips.Count; x++ )
-                {
-                    GameEntity_Squad target = World_AIW2.Instance.GetEntityByID_Squad( factionData.CargoShips[x] );
-                    if ( target != null && target.Planet == wormholeToSpawnAt.Planet && !attackedTargets.Contains( target.PrimaryKeyID ) )
-                    {
-                        int thisBudget = 1000;
-                        raidBudget -= thisBudget;
-                        // Spawn random fast ships that the ai is allowed to have.
-                        string[] shipNames = BadgerFactionUtilityMethods.getEntitesInAIShipGroup( AIShipGroupTable.Instance.GetRowByName( "RaidStrikecraftAndFrigates", false, null ) ).Split( ',' );
-                        List<GameEntityTypeData> shipTypes = new List<GameEntityTypeData>();
-                        for(int y = 0; y < shipNames.Length; y++ )
-                        {
-                            if ( shipNames[y].Trim() != "" ) {
-                                GameEntityTypeData entityData = GameEntityTypeDataTable.Instance.GetRowByName( shipNames[y].Trim(), false, null );
-                                if ( entityData != null)
-                                    shipTypes.Add( entityData );
-                            }
-                        }
-                       
-                        List<GameEntity_Squad> spawntRaidShips = new List<GameEntity_Squad>();
-                        ArcenSparseLookup<GameEntityTypeData, int> raidingShips = new ArcenSparseLookup<GameEntityTypeData, int>();
-                        while ( thisBudget > 0 )
-                        {
-                            GameEntityTypeData workingType = shipTypes[Context.RandomToUse.Next( shipTypes.Count )];
-                            if ( !raidingShips.GetHasKey( workingType ) )
-                                raidingShips.AddPair( workingType, 1 );
-                            else
-                                raidingShips[workingType]++;
-                            thisBudget -= workingType.CostForAIToPurchase;
-                        }
-                        BaseAIFaction.DeployComposition( Context, aiFaction, null, faction.FactionIndex, raidingShips,
-                            ref spawntRaidShips, wormholeToSpawnAt.WorldLocation, wormholeToSpawnAt.Planet );
-
-                        for ( int shipCount = 0; shipCount < spawntRaidShips.Count; shipCount++ )
-                        {
-                            spawntRaidShips[shipCount].ExoGalacticAttackTarget = SquadWrapper.Create( target );
-                            if ( spawntRaidShips[shipCount].ExoGalacticAttackTarget.GetSquad() == null )
-                                throw new Exception( "This is probably too paranoid" );
-
-                            spawntRaidShips[shipCount].ExoGalacticAttackPlanetIdx = target.Planet.Index; //set the planet index so that AI long term planning knows we are in an Exo
-                        }
-
-                        GameCommand speedCommand = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.CreateSpeedGroup_ExoAttack], GameCommandSource.AnythingElse );
-                        for ( int shipCount = 0; shipCount < spawntRaidShips.Count; shipCount++ )
-                            speedCommand.RelatedEntityIDs.Add( spawntRaidShips[shipCount].PrimaryKeyID );
-                        int exoGroupSpeed = 2200;
-                        speedCommand.RelatedBool = true;
-                        speedCommand.RelatedIntegers.Add( exoGroupSpeed );
-                        World_AIW2.Instance.QueueGameCommand( speedCommand, false );
-
-                        attackedTargets.Add( target.PrimaryKeyID );
-                    }
-                }
+                GameEntity_Squad target = World_AIW2.Instance.GetEntityByID_Squad( factionData.CargoShips[x] );
+                SpawnRaidGroup( target, factionData.NextRaidWormholes, ref attackedTargets, ref raidBudget, aiFaction, faction, Context );
             }
+            
 
             // Let the player know they're about to lose money.
             World_AIW2.Instance.QueueLogMessageCommand( "The AI has begun their raid.", JournalEntryImportance.Normal );
@@ -2569,7 +2557,7 @@ namespace Arcen.AIW2.SK
                 // Increment rebuild timers.
                 if ( factionData.GrandStationRebuildTimerInSeconds > 0 )
                     factionData.GrandStationRebuildTimerInSeconds--;
-                foreach ( int planet in factionData.TradeStationRebuildTimerInSecondsByPlanet.Keys )
+                foreach ( int planet in factionData.TradeStationRebuildTimerInSecondsByPlanet.Keys.ToList() )
                 {
                     if ( factionData.TradeStationRebuildTimerInSecondsByPlanet[planet] > 0 )
                         factionData.TradeStationRebuildTimerInSecondsByPlanet[planet]--;
@@ -2631,7 +2619,8 @@ namespace Arcen.AIW2.SK
             // Save our world data.
             World.Instance.SetCivilianWorldExt( worldData );
 
-            this.worldData = worldData;
+            // Make it globally available.
+            SpecialFaction_SKCivilianIndustry.worldData = worldData;
         }
 
         // Handle station requests.
@@ -2644,19 +2633,13 @@ namespace Arcen.AIW2.SK
                 return;
             }
             Engine_Universal.NewTimingsBeingBuilt.StartRememberingFrame( FramePartTimings.TimingType.ShortTermBackgroundThreadEntry, "DoTradeRequests" );
-            // Clear our TradeRequests list.
-            factionData.TradeRequests = new List<TradeRequest>();
+            // Clear our lists.
+            factionData.ImportRequests = new List<TradeRequest>();
+            factionData.ExportRequests = new List<TradeRequest>();
             #region Planet Level Trading
             // See if any militia stations don't have a trade in progress.
             for ( int x = 0; x < factionData.MilitiaLeaders.Count; x++ )
             {
-                // If no free cargo ships, increment build counter and stop.
-                if ( factionData.CargoShipsIdle.Count == 0 )
-                {
-                    factionData.BuildCounter += (factionData.MilitiaLeaders.Count);
-                    Engine_Universal.NewTimingsBeingBuilt.FinishRememberingFrame( FramePartTimings.TimingType.ShortTermBackgroundThreadEntry, "DoTradeRequests" );
-                    return;
-                }
                 GameEntity_Squad militia = World_AIW2.Instance.GetEntityByID_Squad( factionData.MilitiaLeaders[x] );
                 if ( militia == null )
                 {
@@ -2704,7 +2687,7 @@ namespace Arcen.AIW2.SK
                     continue;
 
                 // Add a request for any resource.
-                factionData.TradeRequests.Add( new TradeRequest( CivilianResource.Length, fullOf, 2 - cargoEnroute, false, militia, 1 ) );
+                factionData.ImportRequests.Add( new TradeRequest( CivilianResource.Length, fullOf, 2 - cargoEnroute, militia, 1 ) );
             }
             #endregion
 
@@ -2718,7 +2701,7 @@ namespace Arcen.AIW2.SK
                 return;
             }
 
-            // Populate our TradeRequests list with trade stations.
+            // Populate our list with trade stations.
             for ( int x = 0; x < factionData.TradeStations.Count; x++ )
             {
                 GameEntity_Squad requester = World_AIW2.Instance.GetEntityByID_Squad( factionData.TradeStations[x] );
@@ -2764,7 +2747,7 @@ namespace Arcen.AIW2.SK
                             int urgency = (int)Math.Ceiling( (1.0 * requesterCargo.Amount[y] / requesterCargo.Capacity[y]) * (requesterCargo.PerSecond[y] * 2) );
 
                             if ( urgency - incomingForPickup > 0 )
-                                factionData.TradeRequests.Add( new TradeRequest( (CivilianResource)y, urgency, true, requester, 3 ) );
+                                factionData.ExportRequests.Add( new TradeRequest( (CivilianResource)y, urgency, requester, 3 ) );
                         }
                     }
                     // Resource we store. Simply put out a super tiny order to import/export based on current stores.
@@ -2773,45 +2756,54 @@ namespace Arcen.AIW2.SK
                         // Generates urgency based on how close to full capacity we are.
                         int urgency = (int)Math.Ceiling( (1.0 * requesterCargo.Amount[y] / requesterCargo.Capacity[y]) * 10 );
                         if ( urgency - incomingForPickup > 0 )
-                            factionData.TradeRequests.Add( new TradeRequest( (CivilianResource)y, urgency / 2, true, requester, 3 ) );
+                            factionData.ExportRequests.Add( new TradeRequest( (CivilianResource)y, urgency / 2, requester, 3 ) );
                     }
                     else if ( incomingForDropoff < 20 && requesterCargo.Amount[y] < requesterCargo.Capacity[y] * 0.75 )
                     {
                         // Generates urgency based on how close to empty we are.
                         int urgency = (int)Math.Ceiling( (1.0 - (1.0 * requesterCargo.Amount[y] / requesterCargo.Capacity[y])) * 10 );
                         if ( urgency - incomingForDropoff > 0 )
-                            factionData.TradeRequests.Add( new TradeRequest( (CivilianResource)y, 1, false, requester, 3 ) );
+                            factionData.ImportRequests.Add( new TradeRequest( (CivilianResource)y, 1, requester, 3 ) );
                     }
 
                 }
             }
 
-            // Sort our list.
-            factionData.TradeRequests.Sort();
+            // Sort our lists.
+            factionData.ImportRequests.Sort();
+
+            // If no import requests, stop.
+            if ( factionData.ImportRequests.Count == 0 )
+            {
+                Engine_Universal.NewTimingsBeingBuilt.FinishRememberingFrame( FramePartTimings.TimingType.ShortTermBackgroundThreadEntry, "DoTradeRequests" );
+                return;
+            }
+
+            factionData.ExportRequests.Sort();
 
             // Initially limit the number of hops to search through, to try and find closer matches to start with.
             // While we have free ships left, assign our requests away.
             int absoluteMaxHops = 0;
             while ( absoluteMaxHops <= 3 )
             {
-                for ( int x = 0; x < factionData.TradeRequests.Count && factionData.CargoShipsIdle.Count > 0; x++ )
+                for ( int x = 0; x < factionData.ImportRequests.Count && factionData.CargoShipsIdle.Count > 0; x++ )
                 {
                     // If no free cargo ships, stop.
                     if ( factionData.CargoShipsIdle.Count == 0 )
                         break;
-                    TradeRequest tradeRequest = factionData.TradeRequests[x];
+                    TradeRequest importRequest = factionData.ImportRequests[x];
                     // If processed, remove.
-                    if ( tradeRequest.Processed == true )
+                    if ( importRequest.Processed == true )
                     {
-                        factionData.TradeRequests.RemoveAt( x );
+                        factionData.ImportRequests.RemoveAt( x );
                         x--;
                         continue;
                     }
-                    int requestedMaxHops = tradeRequest.MaxSearchHops;
-                    GameEntity_Squad requestingEntity = tradeRequest.Station;
+                    int requestedMaxHops = importRequest.MaxSearchHops;
+                    GameEntity_Squad requestingEntity = importRequest.Station;
                     if ( requestingEntity == null )
                     {
-                        factionData.TradeRequests.RemoveAt( x );
+                        factionData.ImportRequests.RemoveAt( x );
                         x--;
                         continue;
                     }
@@ -2827,7 +2819,7 @@ namespace Arcen.AIW2.SK
                             continue;
                         }
                         // If few enough hops away for this attempt, assign.
-                        if ( cargoShip.Planet.GetHopsTo( requestingEntity.Planet ) <= Math.Min( requestedMaxHops, absoluteMaxHops ) )
+                        if ( cargoShip.Planet.GetHopsTo( requestingEntity.Planet ) <= requestedMaxHops )
                         {
                             foundCargoShip = cargoShip;
                             break;
@@ -2836,58 +2828,52 @@ namespace Arcen.AIW2.SK
                     if ( foundCargoShip == null )
                         continue;
                     // If the cargo ship over 75% of the resource already on it, skip the origin station search, and just have it start heading right towards our requesting station.
-                    if ( !tradeRequest.IsExport )
+                    bool hasEnough = false;
+                    CivilianCargo foundCargo = foundCargoShip.GetCivilianCargoExt();
+                    for ( int y = 0; y < (int)CivilianResource.Length; y++ )
+                        if ( (importRequest.Requested == CivilianResource.Length && !importRequest.Declined.Contains( (CivilianResource)y )) || importRequest.Requested == (CivilianResource)y )
+                            if ( foundCargo.Amount[y] > foundCargo.Capacity[y] * 0.75 )
+                            {
+                                hasEnough = true;
+                                break;
+                            }
+
+                    if ( hasEnough )
                     {
-                        bool hasEnough = false;
-                        CivilianCargo foundCargo = foundCargoShip.GetCivilianCargoExt();
-                        for ( int y = 0; y < (int)CivilianResource.Length; y++ )
-                            if ( (tradeRequest.Requested == CivilianResource.Length && !tradeRequest.Declined.Contains( (CivilianResource)y )) || tradeRequest.Requested == (CivilianResource)y )
-                                if ( foundCargo.Amount[y] > foundCargo.Capacity[y] * 0.75 )
-                                {
-                                    hasEnough = true;
-                                    break;
-                                }
-
-                        if ( hasEnough )
-                        {
-                            // Update our cargo ship with its new mission.
-                            factionData.CargoShipsIdle.Remove( foundCargoShip.PrimaryKeyID );
-                            factionData.CargoShipsEnroute.Add( foundCargoShip.PrimaryKeyID );
-                            CivilianStatus cargoShipStatus = foundCargoShip.GetCivilianStatusExt();
-                            cargoShipStatus.Origin = -1;    // No origin station required.
-                            cargoShipStatus.Destination = requestingEntity.PrimaryKeyID;
-                            cargoShipStatus.Status = CivilianShipStatus.Enroute;
-                            // Save its updated status.
-                            foundCargoShip.SetCivilianStatusExt( cargoShipStatus );
-                            // Remove the completed entities from processing.
-                            tradeRequest.Processed = true;
-                            continue;
-                        }
+                        // Update our cargo ship with its new mission.
+                        factionData.CargoShipsIdle.Remove( foundCargoShip.PrimaryKeyID );
+                        factionData.CargoShipsEnroute.Add( foundCargoShip.PrimaryKeyID );
+                        CivilianStatus cargoShipStatus = foundCargoShip.GetCivilianStatusExt();
+                        cargoShipStatus.Origin = -1;    // No origin station required.
+                        cargoShipStatus.Destination = requestingEntity.PrimaryKeyID;
+                        cargoShipStatus.Status = CivilianShipStatus.Enroute;
+                        // Save its updated status.
+                        foundCargoShip.SetCivilianStatusExt( cargoShipStatus );
+                        // Remove the completed entities from processing.
+                        importRequest.Processed = true;
+                        continue;
                     }
-
 
                     // Find a trade request of the same resource type and opposing Import/Export status thats within our hop limit.
                     GameEntity_Squad otherStation = null;
                     TradeRequest otherRequest = null;
-                    for ( int z = 0; z < factionData.TradeRequests.Count; z++ )
+                    for ( int z = 0; z < factionData.ExportRequests.Count; z++ )
                     {
                         // Skip if same.
                         if ( x == z )
                             continue;
-                        TradeRequest tempRequest = factionData.TradeRequests[z];
+                        TradeRequest exportRequest = factionData.ExportRequests[z];
                         // If processed, skip.
-                        if ( tempRequest.Processed )
+                        if ( exportRequest.Processed )
                             continue;
-                        int otherRequestedMaxHops = tempRequest.MaxSearchHops;
+                        int otherRequestedMaxHops = exportRequest.MaxSearchHops;
 
-                        if ( (tempRequest.Requested == tradeRequest.Requested // Matching request.
-                            || (tradeRequest.Requested == CivilianResource.Length && !tradeRequest.Declined.Contains( tempRequest.Requested )) // Temp has a resource primary accepts.
-                            || (tempRequest.Requested == CivilianResource.Length && !tempRequest.Declined.Contains( tradeRequest.Requested ))) // Primary has a resource temp accepts.
-                          && tempRequest.IsExport != tradeRequest.IsExport
-                          && tempRequest.Station.Planet.GetHopsTo( tradeRequest.Station.Planet ) <= Math.Min( absoluteMaxHops, Math.Min( requestedMaxHops, otherRequestedMaxHops ) ) )
+                        if ( (importRequest.Requested == exportRequest.Requested // Matching request.
+                            || (importRequest.Requested == CivilianResource.Length && !importRequest.Declined.Contains( exportRequest.Requested ))) // Export has a resource import accepts.
+                          && importRequest.Station.Planet.GetHopsTo( exportRequest.Station.Planet ) <= Math.Min( requestedMaxHops, otherRequestedMaxHops ) )
                         {
-                            otherStation = tempRequest.Station;
-                            otherRequest = tempRequest;
+                            otherStation = exportRequest.Station;
+                            otherRequest = exportRequest;
                             break;
                         }
                     }
@@ -2896,23 +2882,16 @@ namespace Arcen.AIW2.SK
                         // Assign our ship to our new trade route, and remove both requests and the ship from our lists.
                         CivilianStatus cargoShipStatus = foundCargoShip.GetCivilianStatusExt();
                         // Make sure the Origin is the Exporter and the Destination is the Importer.
-                        if ( tradeRequest.IsExport )
-                        {
-                            cargoShipStatus.Origin = requestingEntity.PrimaryKeyID;
-                            cargoShipStatus.Destination = otherStation.PrimaryKeyID;
-                        }
-                        else
-                        {
-                            cargoShipStatus.Origin = otherStation.PrimaryKeyID;
-                            cargoShipStatus.Destination = requestingEntity.PrimaryKeyID;
-                        }
+                        cargoShipStatus.Origin = otherStation.PrimaryKeyID;
+                        cargoShipStatus.Destination = requestingEntity.PrimaryKeyID;
+
                         factionData.CargoShipsIdle.Remove( foundCargoShip.PrimaryKeyID );
                         factionData.CargoShipsPathing.Add( foundCargoShip.PrimaryKeyID );
                         cargoShipStatus.Status = CivilianShipStatus.Pathing;
                         // Save its updated status.
                         foundCargoShip.SetCivilianStatusExt( cargoShipStatus );
                         // Remove the completed entities from processing.
-                        tradeRequest.Processed = true;
+                        importRequest.Processed = true;
                         if ( otherRequest != null )
                             otherRequest.Processed = true;
                     }
@@ -2920,8 +2899,8 @@ namespace Arcen.AIW2.SK
                 absoluteMaxHops++;
             }
             // If we've finished due to not having enough trade ships, request more cargo ships.
-            if ( factionData.TradeRequests.Count > 0 && factionData.CargoShipsIdle.Count == 0 )
-                factionData.BuildCounter += (factionData.TradeRequests.Count + factionData.TradeStations.Count);
+            if ( factionData.ImportRequests.Count > 0 && factionData.ExportRequests.Count > 0 && factionData.CargoShipsIdle.Count == 0 )
+                factionData.BuildCounter += (factionData.ImportRequests.Count + factionData.TradeStations.Count);
 
             #endregion
             Engine_Universal.NewTimingsBeingBuilt.FinishRememberingFrame( FramePartTimings.TimingType.MainSimThreadNormal, "DoTradeRequests" );
@@ -3606,6 +3585,84 @@ namespace Arcen.AIW2.SK
             Engine_Universal.NewTimingsBeingBuilt.FinishRememberingFrame( FramePartTimings.TimingType.ShortTermBackgroundThreadEntry, "DoMilitiaThreatReaction" );
         }
 
+        // Update ship and turret caps for militia buildings.
+        public void UpdateUnitCaps( Faction faction, Faction playerFaction, CivilianFaction factionData, ArcenLongTermIntermittentPlanningContext Context )
+        {
+            // Count the number of militia barracks for each planet.
+            Dictionary<Planet, int> barracksPerPlanet = new Dictionary<Planet, int>();
+            playerFaction.DoForControlledPlanets( delegate ( Planet planet )
+            {
+                planet.DoForEntities( EntityRollupType.SpecialTypes, delegate ( GameEntity_Squad building )
+                {
+                    if ( building.TypeData.SpecialType == SpecialEntityType.NPCFactionCenterpiece && building.TypeData.GetHasTag( "MilitiaBarracks" )
+                    && building.SelfBuildingMetalRemaining <= 0 && building.SecondsSpentAsRemains <= 0 )
+                        if ( barracksPerPlanet.ContainsKey( planet ) )
+                            barracksPerPlanet[planet]++;
+                        else
+                            barracksPerPlanet.Add( planet, 1 );
+                    return DelReturn.Continue;
+                } );
+                return DelReturn.Continue;
+            } );
+            // Handle once for each militia leader.
+            for ( int x = 0; x < factionData.MilitiaLeaders.Count; x++ )
+            {
+                // Load its ship and status.
+                GameEntity_Squad militiaShip = World_AIW2.Instance.GetEntityByID_Squad( factionData.MilitiaLeaders[x] );
+                if ( militiaShip == null )
+                    continue;
+                CivilianMilitia militiaStatus = militiaShip.GetCivilianMilitiaExt();
+                if ( militiaStatus.Status == CivilianMilitiaStatus.Defending )
+                {
+                    // For each type of unit, process.
+                    for ( int y = 0; y < (int)CivilianResource.Length; y++ )
+                    {
+                        if ( militiaStatus.ShipTypeData[y] == "none" )
+                            continue; // Skip if not yet loaded.
+
+                        GameEntityTypeData turretData = GameEntityTypeDataTable.Instance.GetRowByName( militiaStatus.ShipTypeData[y], false, null );
+
+                        militiaStatus.ShipCapacity[y] = (factionData.GetCap( faction ) / (FInt.Create( turretData.GetForMark( faction.GetGlobalMarkLevelForShipLine( turretData ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
+                        militiaShip.Planet.DoForLinkedNeighborsAndSelf( delegate ( Planet otherPlanet )
+                        {
+                            if ( barracksPerPlanet.ContainsKey( otherPlanet ) )
+                                for ( int z = 0; z < barracksPerPlanet[otherPlanet]; z++ )
+                                    if ( turretData.MultiplierToAllFleetCaps == 0 )
+                                        militiaStatus.ShipCapacity[y] += Math.Max( 1, (FInt.Create( militiaStatus.ShipCapacity[y], true ) / 3).GetNearestIntPreferringHigher() );
+                                    else
+                                        militiaStatus.ShipCapacity[y] += Math.Max( (1 / turretData.MultiplierToAllFleetCaps).GetNearestIntPreferringHigher(), (FInt.Create( militiaStatus.ShipCapacity[y], true ) / 3).GetNearestIntPreferringHigher() );
+                            return DelReturn.Continue;
+                        } );
+                        militiaStatus.ShipCapacity[y] = (int)(militiaStatus.ShipCapacity[y] * (militiaStatus.CapMultiplier / 100.0));
+                    }
+                }
+                else if ( militiaStatus.Status == CivilianMilitiaStatus.Patrolling ) // If patrolling, do unit spawning.
+                {
+                    // For each type of unit, get ship count.
+                    for ( int y = 0; y < (int)CivilianResource.Length; y++ )
+                    {
+                        if ( militiaStatus.ShipTypeData[y] == "none" )
+                            continue; // Skip if not yet loaded.
+
+                        GameEntityTypeData shipData = GameEntityTypeDataTable.Instance.GetRowByName( militiaStatus.ShipTypeData[y], false, null );
+
+                        militiaStatus.ShipCapacity[y] = (factionData.GetCap( faction ) / (FInt.Create( shipData.GetForMark( faction.GetGlobalMarkLevelForShipLine( shipData ) ).StrengthPerSquad, true ) / 10)).GetNearestIntPreferringHigher();
+                        militiaShip.Planet.DoForLinkedNeighborsAndSelf( delegate ( Planet otherPlanet )
+                        {
+                            if ( barracksPerPlanet.ContainsKey( otherPlanet ) )
+                                for ( int z = 0; z < barracksPerPlanet[otherPlanet]; z++ )
+                                    if ( shipData.MultiplierToAllFleetCaps == 0 )
+                                        militiaStatus.ShipCapacity[y] += Math.Max( 1, (FInt.Create( militiaStatus.ShipCapacity[y], true ) / 3).GetNearestIntPreferringHigher() );
+                                    else
+                                        militiaStatus.ShipCapacity[y] += Math.Max( (1 / shipData.MultiplierToAllFleetCaps).GetNearestIntPreferringHigher(), (FInt.Create( militiaStatus.ShipCapacity[y], true ) / 3).GetNearestIntPreferringHigher() );
+                            return DelReturn.Continue;
+                        } );
+                        militiaStatus.ShipCapacity[y] = (int)(militiaStatus.ShipCapacity[y] * (militiaStatus.CapMultiplier / 100.0));
+                    }
+                }
+            }
+        }
+
         // Do NOT directly change anything from this function. Doing so may cause desyncs in multiplayer.
         // What you can do from here is queue up game commands for units, and send them to be done via QueueCommandForSendingAtEndOfContext.
         public override void DoLongRangePlanning_OnBackgroundNonSimThread_Subclass( Faction faction, ArcenLongTermIntermittentPlanningContext Context )
@@ -3631,6 +3688,7 @@ namespace Arcen.AIW2.SK
                 DoCargoShipMovement( faction, playerFaction, factionData, Context );
                 DoMilitiaConstructionShipMovement( faction, playerFaction, factionData, Context );
                 DoMilitiaThreatReaction( faction, playerFaction, factionData, Context );
+                UpdateUnitCaps( faction, playerFaction, factionData, Context );
             }
         }
 
