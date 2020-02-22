@@ -1111,7 +1111,7 @@ namespace Arcen.AIW2.SK
 
                         int cost = 0;
                         if ( RelatedEntityOrNull.TypeData.GetHasTag( "BuildsProtectors" ) )
-                            cost = (int)(25000 * SpecialFaction_SKCivilianIndustry.CostIntensityModifier( RelatedEntityOrNull.PlanetFaction.Faction ));
+                            cost = (int)(12000 * SpecialFaction_SKCivilianIndustry.CostIntensityModifier( RelatedEntityOrNull.PlanetFaction.Faction ));
                         else
                         {
                             double countCostModifier = 1.0 + (1.0 - ((militiaData.ShipCapacity[x] - count + 1.0) / militiaData.ShipCapacity[x]));
@@ -2339,7 +2339,7 @@ namespace Arcen.AIW2.SK
                         {
                             int cost = 0;
                             if ( buildingProtectors )
-                                cost = (int)(25000 * CostIntensityModifier( faction ));
+                                cost = (int)(12000 * CostIntensityModifier( faction ));
                             else
                             {
                                 double countCostModifier = 1.0 + (1.0 - ((militiaStatus.ShipCapacity[y] - count + 1.0) / militiaStatus.ShipCapacity[y]));
