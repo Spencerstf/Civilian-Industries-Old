@@ -1427,7 +1427,7 @@ namespace Arcen.AIW2.SK
 
                          entity.SetCivilianMilitiaExt( militiaStatus );
                      }
-                     else if ( entity.TypeData.GetHasTag( "MilitiaProtectorShipyards" ) )
+                     else if ( entity.TypeData.GetHasTag( "MilitiaProtectorShipyards" ) && !factionData.MilitiaLeaders.Contains( entity.PrimaryKeyID ) )
                      {
                          // Militia Protector Shipyards. Add it to our militia list and set it to patrol logic.
                          factionData.MilitiaLeaders.Add( entity.PrimaryKeyID );
@@ -2039,12 +2039,17 @@ namespace Arcen.AIW2.SK
             // Handle once for each militia leader.
             List<int> toRemove = new List<int>();
             List<int> toAdd = new List<int>();
+            List<int> processed = new List<int>();
             for ( int x = 0; x < factionData.MilitiaLeaders.Count; x++ )
             {
                 // Load its ship and status.
                 GameEntity_Squad militiaShip = World_AIW2.Instance.GetEntityByID_Squad( factionData.MilitiaLeaders[x] );
-                if ( militiaShip == null )
+                if ( militiaShip == null || processed.Contains(militiaShip.PrimaryKeyID) )
+                {
+                    factionData.MilitiaLeaders.RemoveAt( x );
+                    x--;
                     continue;
+                }
                 CivilianMilitia militiaStatus = militiaShip.GetCivilianMilitiaExt();
                 CivilianCargo militiaCargo = militiaShip.GetCivilianCargoExt();
                 if ( militiaStatus.Status != CivilianMilitiaStatus.Defending && militiaStatus.Status != CivilianMilitiaStatus.Patrolling )
@@ -2424,6 +2429,7 @@ namespace Arcen.AIW2.SK
                     militiaShip.SetCivilianMilitiaExt( militiaStatus );
                     militiaShip.SetCivilianCargoExt( militiaCargo );
                 }
+                processed.Add( militiaShip.PrimaryKeyID );
             }
             for ( int x = 0; x < toRemove.Count; x++ )
             {
@@ -2900,7 +2906,7 @@ namespace Arcen.AIW2.SK
                         x--;
                         continue;
                     }
-                    // Get a free cargo ship within our hop limit.
+                    // Get a free cargo ship within 3 hops.
                     GameEntity_Squad foundCargoShip = null;
                     for ( int y = 0; y < factionData.CargoShipsIdle.Count; y++ )
                     {
@@ -2912,7 +2918,7 @@ namespace Arcen.AIW2.SK
                             continue;
                         }
                         // If few enough hops away for this attempt, assign.
-                        if ( cargoShip.Planet.GetHopsTo( requestingEntity.Planet ) <= requestedMaxHops )
+                        if ( cargoShip.Planet.GetHopsTo( requestingEntity.Planet ) <= absoluteMaxHops )
                         {
                             foundCargoShip = cargoShip;
                             break;
