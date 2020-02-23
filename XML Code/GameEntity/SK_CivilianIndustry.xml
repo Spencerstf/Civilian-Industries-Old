@@ -248,17 +248,18 @@
     </entity>
     <entity name="CivAmbushTurret" display_name="Civilian Ambush Turret" skip_export="true" copy_from="AmbushTurret"
             tags="CivAmbushTurret,CivTurret"
-            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
-            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
-            multiplier_to_all_scales="0.5"
+            multiplier_to_all_costs="2" multiplier_to_all_healths="2" 
+            damage_multiplier_to_all_weapons="2" multiplier_to_all_fleet_caps="0.5" 
+            multiplier_to_all_scales="2"
     >
     </entity>
     <entity name="CrackerJack" display_name="Cracker Jack Protector" skip_export="true" copy_from="RaidFrigate"
                 tags="CivAmbushProtector,CivProtector"
+				special_entity_type="Frigate" armor_mm="180" albedo="0.6" engine_gx="25" mass_tx="25"	
                 description="A potent Protector, built using advanced Ambush technology. This ship is an expert at taking down any forces that have recently arrived on its planet."
-                hull_points="500000" shield_points="250000"
+                hull_points="1000000" shield_points="500000"
                 tech_upgrades_that_benefit_me="Ambush,Medium"
-				multiplier_to_all_scales="2"
+				multiplier_to_all_scales="4"
     >
         <system name="FusionBolt" display_name="Crackerjack Bolt"
                         category="Weapon" firing_timing="OnlyInRange"
@@ -286,15 +287,16 @@
     </entity>
     <entity name="CivConcussionTurret" display_name="Civilian Concussion Turret" skip_export="true" copy_from="ConcussionTurret"
             tags="CivConcussionTurret,CivTurret"
-            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
-            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
-            multiplier_to_all_scales="0.5"
+            multiplier_to_all_costs="2" multiplier_to_all_healths="2" 
+            damage_multiplier_to_all_weapons="2" multiplier_to_all_fleet_caps="0.5" 
+            multiplier_to_all_scales="2"
     >
     </entity>
     <entity name="Thunderstrike" display_name="Thunderstrike Protector" skip_export="true" copy_from="SiegeFrigate"
                 tags="CivConcussionProtector,CivProtector"
+				special_entity_type="Frigate" armor_mm="180" albedo="0.6" engine_gx="25" mass_tx="25"	
                 description="A potent Protector, built using advanced Concussion technology. This ship is an expert at dividing enemy forces with a powerful aoe knockback effect."
-                hull_points="500000" shield_points="250000"
+                hull_points="1000000" shield_points="500000"
                 tech_upgrades_that_benefit_me="Concussion,Light"
 				multiplier_to_all_scales="2"
     >
@@ -325,15 +327,16 @@
     </entity>
     <entity name="CivPikeTurret" display_name="Civilian Pike Turret" skip_export="true" copy_from="PikeTurret"
             tags="CivDisruptiveTurret,CivTurret"
-            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
-            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
-            multiplier_to_all_scales="0.5"
+            multiplier_to_all_costs="2" multiplier_to_all_healths="2" 
+            damage_multiplier_to_all_weapons="2" multiplier_to_all_fleet_caps="0.5" 
+            multiplier_to_all_scales="2"
     >
     </entity>
     <entity name="Paladin" display_name="Paladin Protector" skip_export="true" copy_from="ForcefieldFrigate"
                 tags="CivDisruptiveProtector,CivProtector"
+				special_entity_type="Frigate" armor_mm="180" albedo="0.6" engine_gx="25" mass_tx="25"	
                 description="A potent Protector, built using advanced Disruptive technology. This ship is the ultimate in protecting its allies with powerful debuffs, a potent forcefield, and self healing."
-                hull_points="250000" shield_points="500000"
+                hull_points="500000" shield_points="1000000" shield_size_scale="10"
                 health_change_per_damage_dealt="5"
                 tech_upgrades_that_benefit_me="Disruptive,Heavy"
 				multiplier_to_all_scales="2"
@@ -361,15 +364,16 @@
     </entity>
     <entity name="CivMLRSTurret" display_name="Civilian MLRS Turret" skip_export="true" copy_from="MLRSTurret"
             tags="CivFusionTurret,CivTurret"
-            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
-            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
-            multiplier_to_all_scales="0.5"
+            multiplier_to_all_costs="2" multiplier_to_all_healths="2" 
+            damage_multiplier_to_all_weapons="2" multiplier_to_all_fleet_caps="0.5" 
+            multiplier_to_all_scales="2"
     >
     </entity>
     <entity name="BrickBreaker" display_name="Brick Breaker Protector" skip_export="true" copy_from="AssaultFrigate"
                 tags="CivFusionProtector,CivProtector"
+				special_entity_type="Frigate" armor_mm="180" albedo="0.6" engine_gx="25" mass_tx="25"	
                 description="A potent Protector, built using advanced Fusion technology. This ship is an expert at taking down large hostiles."
-                hull_points="500000" shield_points="250000"
+                hull_points="1000000" shield_points="500000"
                 tech_upgrades_that_benefit_me="Fusion,Heavy"
 				multiplier_to_all_scales="2"
     >
@@ -401,15 +405,16 @@
     </entity>
     <entity name="CivTritiumSniperTurret" display_name="Civilian Tritium Sniper Turret" skip_export="true" copy_from="TritiumSniperTurret"
             tags="CivGeneralistTurret,CivTurret"
-            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
-            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
-            multiplier_to_all_scales="0.5"
+            multiplier_to_all_costs="2" multiplier_to_all_healths="2" 
+            damage_multiplier_to_all_weapons="2" multiplier_to_all_fleet_caps="0.5" 
+            multiplier_to_all_scales="2"
     >
     </entity>
 	<entity name="Hurricane" display_name="Hurricane Protector" skip_export="true" copy_from="TritiumSniperFrigate"
                 tags="CivGeneralistProtector,CivProtector"
+				special_entity_type="Frigate" armor_mm="180" albedo="0.6" engine_gx="25" mass_tx="25"	
                 description="A potent Protector, built using advanced Generalist technology. This ship provides a large radius gravity generator and powerful rapid fire sniper shots."
-                hull_points="500000" shield_points="250000"
+                hull_points="1000000" shield_points="500000"
                 tech_upgrades_that_benefit_me="Generalist,Light"
 				multiplier_to_all_scales="2"
     >
@@ -443,11 +448,12 @@
     </entity>
 	<entity name="Excalibur" display_name="Excalibur Protector" skip_export="true" copy_from="VampireClaw"
                 tags="CivMeleeProtector,CivProtector"
+				special_entity_type="Frigate" armor_mm="180" albedo="0.6" engine_gx="25" mass_tx="25"	
                 description="A potent Protector, built using advanced Melee technology. This ship is a slow moving and durable ship that can tractor an incredible number of enemy targets."
-                hull_points="500000" shield_points="250000"
+                hull_points="1000000" shield_points="500000"
                 tech_upgrades_that_benefit_me="Melee,Heavy"
 				health_change_per_damage_dealt="0" is_strikecraft="false" speed="BelowAverage1"
-				multiplier_to_all_scales="10" multiplier_to_all_costs="100"
+				multiplier_to_all_scales="15" multiplier_to_all_costs="100"
     >
 	<system name="Melee" display_name="Ranged Blade"
 				category="Weapon" firing_timing="OnlyInRange"
@@ -481,11 +487,12 @@
     </entity>
 	<entity name="GrimReaper" display_name="Grim Reaper Protector" skip_export="true" copy_from="RaidFrigate"
                 tags="CivRaidProtector,CivProtector"
+				special_entity_type="Frigate" armor_mm="180" albedo="0.6" engine_gx="25" mass_tx="25"	
                 description="A potent Protector, built using advanced Raid technology. This ship is excellent at taking down weaker ships to fuel its rampage."
-                hull_points="500000" shield_points="250000"
+                hull_points="1000000" shield_points="500000"
                 tech_upgrades_that_benefit_me="Raid,Medium"
 				health_change_per_damage_dealt="5"
-				multiplier_to_all_scales="2"
+				multiplier_to_all_scales="4"
     >
 	<system name="FusionBolt" display_name="Reaper Bolt"
 				category="Weapon" firing_timing="OnlyInRange"
@@ -515,15 +522,16 @@
     </entity>
     <entity name="CivFortifiedTeslaTurret" display_name="Civilian Fortified Tesla Turret" skip_export="true" copy_from="FortifiedTeslaTurret"
             tags="CivSplashTurret,CivTurret"
-            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
-            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
-            multiplier_to_all_scales="0.5"
+            multiplier_to_all_costs="2" multiplier_to_all_healths="2" 
+            damage_multiplier_to_all_weapons="2" multiplier_to_all_fleet_caps="0.5" 
+            multiplier_to_all_scales="2"
     >
     </entity>
 	<entity name="Wildfire" display_name="Wildfire Protector" skip_export="true" copy_from="GrenadeLauncherCorvette"
                 tags="CivSplashProtector,CivProtector"
+				special_entity_type="Frigate" armor_mm="180" albedo="0.6" engine_gx="25" mass_tx="25"	
                 description="A potent Protector, built using advanced Splash technology. This ship fires off multiple types of slow moving grenades at hostile forces."
-                hull_points="500000" shield_points="250000"
+                hull_points="1000000" shield_points="500000"
                 tech_upgrades_that_benefit_me="Splash,Light"
 				is_strikecraft="false" multiplier_to_all_scales="7" multiplier_to_all_costs="100"
     >
@@ -569,15 +577,16 @@
     </entity>
     <entity name="CivSpiderTurret" display_name="Civilian Spider Turret" skip_export="true" copy_from="SpiderTurret"
             tags="CivSubterfugeTurret,CivTurret"
-            multiplier_to_all_costs="0.5" multiplier_to_all_healths="0.5" 
-            damage_multiplier_to_all_weapons="0.5" multiplier_to_all_fleet_caps="2" 
-            multiplier_to_all_scales="0.5"
+            multiplier_to_all_costs="2" multiplier_to_all_healths="2" 
+            damage_multiplier_to_all_weapons="2" multiplier_to_all_fleet_caps="0.5" 
+            multiplier_to_all_scales="2"
     >
     </entity>
 	<entity name="Tangler" display_name="Tangler Protector" skip_export="true" copy_from="WarbirdFrigate"
                 tags="CivSubterfugeProtector,CivProtector"
+				special_entity_type="Frigate" armor_mm="180" albedo="0.6" engine_gx="25" mass_tx="25"	
                 description="A potent Protector, built using advanced Subterfuge technology. This ship is capable of rapidly vaporizing fast moving ships and paralyzing the rest."
-                hull_points="500000" shield_points="250000"
+                hull_points="1000000" shield_points="500000"
                 tech_upgrades_that_benefit_me="Subterfuge,Light"
 				multiplier_to_all_scales="2"
     >
@@ -615,14 +624,15 @@
     </entity>
 	<entity name="Orchestrator" display_name="Orchestrator Protector" skip_export="true" copy_from="CarrierGuardian"
                 tags="CivTechnologistProtector,CivProtector"
+				special_entity_type="Frigate" armor_mm="180" albedo="0.6" engine_gx="25" mass_tx="25"	
                 description="A potent Protector, built using advanced Technologist technology. This ship spawns decoy drones, speeds up allied ships on its planet, and grants planet-wide tachyeon coverage."
-                hull_points="500000" shield_points="250000"
+                hull_points="1000000" shield_points="500000"
                 tech_upgrades_that_benefit_me="Technologist,Medium"
 				fleet_design_template_i_use_for_drones="DecoyDrones"
 				drone_starting_behavior_type="Attacker_Full"	
 				allied_speed_multiplier="2"
 				allied_speed_multiplier_added_per_mark="0.25"
-				multiplier_to_all_scales="2"
+				multiplier_to_all_scales="3"
     >
 	<system name="TachyonArray" display_name="Orchestration Array"
 	    category="Passive" tachyon_points="100" tachyon_points_added_per_mark="50" 
