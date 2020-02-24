@@ -2044,7 +2044,7 @@ namespace Arcen.AIW2.SK
             {
                 // Load its ship and status.
                 GameEntity_Squad militiaShip = World_AIW2.Instance.GetEntityByID_Squad( factionData.MilitiaLeaders[x] );
-                if ( militiaShip == null || processed.Contains(militiaShip.PrimaryKeyID) )
+                if ( militiaShip == null || processed.Contains( militiaShip.PrimaryKeyID ) )
                 {
                     factionData.MilitiaLeaders.RemoveAt( x );
                     x--;
@@ -3320,19 +3320,25 @@ namespace Arcen.AIW2.SK
                         for ( int z = 0; z < militiaData.Ships[y].Count; z++ )
                         {
                             GameEntity_Squad entity = World_AIW2.Instance.GetEntityByID_Squad( militiaData.Ships[y][z] );
-                            if ( entity == null )
+                            if ( entity == null || entity.LongRangePlanningData == null )
                                 continue;
 
                             // Skip centerpiece.
                             if ( centerpiece.PrimaryKeyID == entity.PrimaryKeyID )
                                 continue;
 
-                            // If we're not on our target yet, path to it.
-                            if ( entity.Planet != targetPlanet )
+                            if ( entity.Planet.Index == targetPlanet.Index && entity.LongRangePlanningData.FinalDestinationIndex != -1 &&
+                                entity.LongRangePlanningData.FinalDestinationIndex != targetPlanet.Index )
                             {
-                                // If we're not on the target planet, return to our centerpiece's planet first, to make sure we don't path through hostile territory.
-                                if ( entity.Planet != centerpiece.Planet )
+                                // We're on our target planet, but for some reason we're trying to leave it. Stop.
+                                entity.Orders.ClearOrders( ClearBehavior.DoNotClearBehaviors, ClearDecollisionOnParent.DoNotClearDecollision, ClearSource.YesClearAnyOrders_IncludingFromHumans );
+                            }
+
+                            if ( entity.Planet.Index != targetPlanet.Index && entity.LongRangePlanningData.FinalDestinationIndex != targetPlanet.Index )
+                            {
+                                if ( entity.Planet.Index != centerpiece.Planet.Index && entity.LongRangePlanningData.FinalDestinationIndex != centerpiece.Planet.Index )
                                 {
+                                    // Not yet on our target planet, and we're not yet on our centerpiece planet. Path to our centerpiece planet first.
                                     // Get a path for the ship to take, and give them the command.
                                     List<Planet> path = faction.FindPath( entity.Planet, centerpiece.Planet, Context );
 
@@ -3345,6 +3351,7 @@ namespace Arcen.AIW2.SK
                                 }
                                 else
                                 {
+                                    // Not yet on our target planet, and we're on our centerpice planet. Path to our target planet.
                                     // Get a path for the ship to take, and give them the command.
                                     List<Planet> path = faction.FindPath( entity.Planet, targetPlanet, Context );
 
@@ -3376,7 +3383,7 @@ namespace Arcen.AIW2.SK
                                     if ( entity == null )
                                         continue;
 
-                                    if ( entity.TypeData.IsMobileCombatant && entity.TypeData.GetHasTag( "CivMobile" ) )
+                                    if ( entity.TypeData.IsMobileCombatant && (entity.TypeData.GetHasTag( "CivMobile" ) || entity.TypeData.GetHasTag("CivProtector")) )
                                         strength += entity.GetStrengthOfSelfAndContents();
                                 }
                             }
@@ -3457,7 +3464,7 @@ namespace Arcen.AIW2.SK
 
                 // Stop the attack if too many ships aren't ready, unless we're already attacking.
                 int notReady = 0, ready = 0;
-
+                
                 for ( int x = 0; x < factionData.MilitiaLeaders.Count; x++ )
                 {
                     // Skip checks if we're already attacking or have already gotten enough strength.
@@ -3483,49 +3490,52 @@ namespace Arcen.AIW2.SK
                             break;
                         }
 
-                    if ( isAttacker )
+                    if ( !isAttacker )
                         continue;
 
-                    for ( int y = 0; y < militiaData.Ships.Count; y++ )
+                    // Prepare a movement command to gather our ships around a wormhole.
+                    GameEntity_Other wormhole = centerpiece.Planet.GetWormholeTo( assessment.Target );
+                    GameCommand wormholeCommand = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.MoveManyToOnePoint], GameCommandSource.AnythingElse );
+                    wormholeCommand.RelatedPoints.Add( wormhole.WorldLocation );
+                    for ( int y = 0; y < militiaData.Ships.Count && !alreadyAttacking; y++ )
                     {
-
-                        if ( alreadyAttacking )
-                            break;
                         for ( int z = 0; z < militiaData.Ships[y].Count; z++ )
                         {
                             GameEntity_Squad entity = World_AIW2.Instance.GetEntityByID_Squad( militiaData.Ships[y][z] );
-                            if ( entity == null )
-                                continue;
-
-                            // Skip centerpiece.
-                            if ( centerpiece.PrimaryKeyID == entity.PrimaryKeyID )
+                            if ( entity == null || entity.LongRangePlanningData == null )
                                 continue;
 
                             // Already attacking, stop checking and start raiding.
-                            if ( entity.Planet == assessment.Target )
+                            if ( entity.Planet.Index == assessment.Target.Index )
                             {
                                 alreadyAttacking = true;
                                 break;
                             }
 
+                            // Skip centerpiece.
+                            if ( centerpiece.PrimaryKeyID == entity.PrimaryKeyID )
+                                continue;
+
                             // Get them moving if needed.
-                            GameEntity_Other wormhole = centerpiece.Planet.GetWormholeTo( assessment.Target );
-                            if ( entity.Planet != centerpiece.Planet && entity.Planet != assessment.Target )
+                            if ( entity.Planet.Index != centerpiece.Planet.Index )
                             {
                                 notReady++;
-                                // Get a path for the ship to take, and give them the command.
-                                List<Planet> path = faction.FindPath( entity.Planet, centerpiece.Planet, Context );
-
-                                // Create and add all required parts of a wormhole move command.
-                                GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath_NPCSingleUnit], GameCommandSource.AnythingElse );
-                                command.RelatedEntityIDs.Add( entity.PrimaryKeyID );
-                                for ( int p = 0; p < path.Count; p++ )
+                                if ( entity.LongRangePlanningData.FinalDestinationIndex != centerpiece.Planet.Index )
                                 {
-                                    Planet nextPlanet = path[p];
-                                    if ( nextPlanet != null )
-                                        command.RelatedIntegers.Add( nextPlanet.Index );
+                                    // Get a path for the ship to take, and give them the command.
+                                    List<Planet> path = faction.FindPath( entity.Planet, centerpiece.Planet, Context );
+
+                                    // Create and add all required parts of a wormhole move command.
+                                    GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.SetWormholePath_NPCSingleUnit], GameCommandSource.AnythingElse );
+                                    command.RelatedEntityIDs.Add( entity.PrimaryKeyID );
+                                    for ( int p = 0; p < path.Count; p++ )
+                                    {
+                                        Planet nextPlanet = path[p];
+                                        if ( nextPlanet != null )
+                                            command.RelatedIntegers.Add( nextPlanet.Index );
+                                    }
+                                    Context.QueueCommandForSendingAtEndOfContext( command );
                                 }
-                                Context.QueueCommandForSendingAtEndOfContext( command );
                             }
                             else if ( wormhole != null && wormhole.WorldLocation.GetExtremelyRoughDistanceTo( entity.WorldLocation ) > 5000 )
                             {
@@ -3533,10 +3543,7 @@ namespace Arcen.AIW2.SK
                                 // Create and add all required parts of a move to point command.
                                 if ( wormhole != null )
                                 {
-                                    GameCommand command = GameCommand.Create( BaseGameCommand.CommandsByCode[BaseGameCommand.Code.MoveManyToOnePoint], GameCommandSource.AnythingElse );
-                                    command.RelatedEntityIDs.Add( entity.PrimaryKeyID );
-                                    command.RelatedPoints.Add( wormhole.WorldLocation );
-                                    Context.QueueCommandForSendingAtEndOfContext( command );
+                                    wormholeCommand.RelatedEntityIDs.Add( entity.PrimaryKeyID );
                                 }
                             }
                             else
@@ -3544,6 +3551,8 @@ namespace Arcen.AIW2.SK
 
                         }
                     }
+                    if ( wormholeCommand.RelatedEntityIDs.Count > 0 && !alreadyAttacking )
+                        Context.QueueCommandForSendingAtEndOfContext( wormholeCommand );
                 }
                 // If 33% all of our ships are ready, or we're already raiding, its raiding time.
                 if ( ready > notReady * 2 || alreadyAttacking )
@@ -3594,14 +3603,21 @@ namespace Arcen.AIW2.SK
                             for ( int z = 0; z < militiaData.Ships[y].Count; z++ )
                             {
                                 GameEntity_Squad entity = World_AIW2.Instance.GetEntityByID_Squad( militiaData.Ships[y][z] );
-                                if ( entity == null )
+                                if ( entity == null || entity.LongRangePlanningData == null )
                                     continue;
 
                                 // Skip centerpiece.
                                 if ( centerpiece.PrimaryKeyID == entity.PrimaryKeyID )
                                     continue;
 
-                                if ( entity.Planet != assessment.Target )
+                                if ( entity.Planet.Index == assessment.Target.Index && entity.LongRangePlanningData.FinalDestinationIndex != -1 &&
+                                entity.LongRangePlanningData.FinalDestinationIndex != assessment.Target.Index )
+                                {
+                                    // We're on our target planet, but for some reason we're trying to leave it. Stop.
+                                    entity.Orders.ClearOrders( ClearBehavior.DoNotClearBehaviors, ClearDecollisionOnParent.DoNotClearDecollision, ClearSource.YesClearAnyOrders_IncludingFromHumans );
+                                }
+
+                                if ( entity.Planet.Index != assessment.Target.Index && entity.LongRangePlanningData.FinalDestinationIndex != assessment.Target.Index )
                                 {
                                     // Get a path for the ship to take, and give them the command.
                                     List<Planet> path = faction.FindPath( entity.Planet, assessment.Target, Context );
@@ -3664,7 +3680,8 @@ namespace Arcen.AIW2.SK
                             var threat = factionData.GetThreat( entity.Planet );
 
                             // If we're not home, and our current planet does not have threat that we think we can beat, return.
-                            if ( entity.Planet.Index != centerpiece.Planet.Index && (threat.Hostile == 0 || threat.MilitiaMobile < threat.Hostile * 1.25) )
+                            if ( entity.Planet.Index != centerpiece.Planet.Index && entity.LongRangePlanningData.FinalDestinationIndex != centerpiece.Planet.Index &&
+                                (threat.Hostile <= 0 || threat.MilitiaMobile < threat.Hostile * 1.25) )
                             {
                                 // Get a path for the ship to take, and give them the command.
                                 List<Planet> path = faction.FindPath( entity.Planet, centerpiece.Planet, Context );
