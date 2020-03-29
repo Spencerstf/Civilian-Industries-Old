@@ -568,14 +568,16 @@ namespace Arcen.AIW2.SK
         public Dictionary<Planet, int> Attackers;
         public int StrengthRequired;
         public bool MilitiaOnPlanet;
+        public bool HasReinforcePoint;
         public int AttackPower { get { return (from o in Attackers select o.Value).Sum(); } }
 
-        public AttackAssessment( Planet target, int strengthRequired )
+        public AttackAssessment( Planet target, int strengthRequired, bool hasReinforcePoints )
         {
             Target = target;
             Attackers = new Dictionary<Planet, int>();
             StrengthRequired = strengthRequired;
             MilitiaOnPlanet = false;
+            HasReinforcePoint = hasReinforcePoints;
         }
         public int CompareTo( AttackAssessment other )
         {
@@ -3556,14 +3558,23 @@ namespace Arcen.AIW2.SK
 
                          var threat = factionData.GetThreat( adjPlanet );
 
+                         // See if they still have any active guard posts.
+                         int reinforcePoints = 0;
+                         adjPlanet.DoForEntities( EntityRollupType.ReinforcementLocations, delegate ( GameEntity_Squad reinforcementPoint )
+                         {
+                             if (!reinforcementPoint.TypeData.IsWarpBeacon && !reinforcementPoint.TypeData.IsCommandStation)
+                                reinforcePoints++;
+                             return DelReturn.Continue;
+                         } );
+
                          // If we don't yet have an assessment for the planet, and it has enough threat, add it.
-                         // Check for either hostile strength being higher than player strength by a considerable margin, or for militia units already being on the planet and we think we're capable of winning.
-                         if ( threat.Total > 1000 )
+                         // Factor out planets that have already been covered by player units.
+                         if ( reinforcePoints > 0 || threat.Total > Math.Max( 1000, (threat.FriendlyMobile + threat.FriendlyGuard) / 3 ) )
                          {
                              AttackAssessment adjAssessment = (from o in attackAssessments where o.Target.Index == adjPlanet.Index select o).FirstOrDefault();
                              if ( adjAssessment == null )
                              {
-                                 adjAssessment = new AttackAssessment( adjPlanet, (int)(threat.Total * 1.25) );
+                                 adjAssessment = new AttackAssessment( adjPlanet, (int)(threat.Total * 1.25), reinforcePoints > 0 ? true : false );
                                  // If we already have units on the planet, mark it as such.
                                  if ( threat.MilitiaMobile > 1000 )
                                      adjAssessment.MilitiaOnPlanet = true;
@@ -3589,24 +3600,30 @@ namespace Arcen.AIW2.SK
                 // If there are, we should be heading there as soon as possible.
                 bool alreadyAttacking = false;
                 var threat = factionData.GetThreat( assessment.Target );
-                if ( threat.FriendlyMobile > 1000 )
+                if ( threat.FriendlyMobile + threat.FriendlyGuard > 1000 )
                 {
                     // If they need our help, see if we can assist.
-                    if ( threat.Total * 3 > threat.FriendlyMobile )
+                    // Consider hostile strength less effective than regular for this purpose.
+                    int effStr = threat.Total / 3;
+                    if ( effStr < threat.FriendlyGuard + threat.FriendlyMobile + assessment.AttackPower)
+                    {
                         alreadyAttacking = true;
+                    }
                     else
+                    {
+                        attackAssessments.RemoveAt( 0 );
                         continue;
+                    }
                 }
-
                 // If not strong enough, remove.
-                if ( assessment.AttackPower < assessment.StrengthRequired )
+                else if ( assessment.AttackPower < assessment.StrengthRequired )
                 {
                     attackAssessments.RemoveAt( 0 );
                     continue;
                 }
 
                 // If militia are already on the planet, pile in.
-                if ( threat.MilitiaGuard > 0 || threat.MilitiaMobile > 0 )
+                if ( assessment.MilitiaOnPlanet )
                     alreadyAttacking = true;
 
                 // Stop the attack if too many ships aren't ready, unless we're already attacking.
